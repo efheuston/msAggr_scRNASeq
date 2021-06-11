@@ -1,0 +1,58 @@
+# 2021.06.10 realign scRNASeq 10XGenomics-v1 chemistry using cellranger v6.0.1 
+
+ulimit -u 4096; cellranger count --id LSKm2 \
+                --fastqs /data/heustonef/10XGenomics/sc_fastqs/170524_OPTIMUS_0257_B_CB0CPANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0258_A_CB1FKANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0259_B_CAVGAANXX \
+                --transcriptome=$CELLRANGER_REF/refdata-gex-mm10-2020-A \
+                --chemistry=SC3Pv1 \
+                --sample=LSKm2 \
+                --localcores=$SLURM_CPUS_PER_TASK \
+                --localmem=64 \
+                --jobmode=slurm --maxjobs=10
+                
+ulimit -u 4096; cellranger count --id CMPm2 \
+                --fastqs /data/heustonef/10XGenomics/sc_fastqs/170524_OPTIMUS_0257_B_CB0CPANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0258_A_CB1FKANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0259_B_CAVGAANXX \
+                --transcriptome=$CELLRANGER_REF/refdata-gex-mm10-2020-A \
+                --chemistry=SC3Pv1 \
+                --sample=CMPm2 \
+                --localcores=$SLURM_CPUS_PER_TASK \
+                --localmem=64 \
+                --jobmode=slurm --maxjobs=10
+
+ulimit -u 4096; cellranger count --id MEPm \
+                --fastqs /data/heustonef/10XGenomics/sc_fastqs/170524_OPTIMUS_0257_B_CB0CPANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0258_A_CB1FKANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0259_B_CAVGAANXX \
+                --transcriptome=$CELLRANGER_REF/refdata-gex-mm10-2020-A \
+                --chemistry=SC3Pv1 \
+                --sample=MEPm \
+                --localcores=$SLURM_CPUS_PER_TASK \
+                --localmem=64 \
+                --jobmode=slurm --maxjobs=10
+
+ulimit -u 4096; cellranger count --id GMPm \
+                --fastqs /data/heustonef/10XGenomics/sc_fastqs/170524_OPTIMUS_0257_B_CB0CPANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0258_A_CB1FKANXX,/data/heustonef/10XGenomics/sc_fastqs/170530_OPTIMUS_0259_B_CAVGAANXX \
+                --transcriptome=$CELLRANGER_REF/refdata-gex-mm10-2020-A \
+                --chemistry=SC3Pv1 \
+                --sample=GMPm \
+                --localcores=$SLURM_CPUS_PER_TASK \
+                --localmem=64 \
+                --jobmode=slurm --maxjobs=10
+
+ulimit -u 4096; cellranger count --id LSKm \
+                --fastqs /data/heustonef/10XGenomics/sc_fastqs/170331_fastq_path \
+                --transcriptome=$CELLRANGER_REF/refdata-gex-mm10-2020-A \
+                --chemistry=SC3Pv1 \
+                --sample=LSKm \
+                --localcores=$SLURM_CPUS_PER_TASK \
+                --localmem=64 \
+                --jobmode=slurm --maxjobs=10
+
+ulimit -u 4096; cellranger count --id CMPm \
+                --fastqs /data/heustonef/10XGenomics/sc_fastqs/170331_fastq_path \
+                --transcriptome=$CELLRANGER_REF/refdata-gex-mm10-2020-A \
+                --chemistry=SC3Pv1 \
+                --sample=CMPm \
+                --localcores=$SLURM_CPUS_PER_TASK \
+                --localmem=64 \
+                --jobmode=slurm --maxjobs=10
+
+
+
