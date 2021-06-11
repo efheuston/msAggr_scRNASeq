@@ -8,7 +8,7 @@ Creating new pipeline using seurat v4.0.2 available 2021.06.08
 Load libraries required for Seuratv4
 
 ```{r setup}
-knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/")
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/")
 library(dplyr)
 library(Seurat)
 library(patchwork)
@@ -20,15 +20,6 @@ sessionInfo()
 sink()
 ```
 
-# Define functions
-
-```{r}
-read_10XGenomics_data<-function(sample.list){
-	data <- sapply(sample.list, FUN = function(x) {x = dirname(list.files(path = x, pattern = 'barcodes.tsv', full.names = TRUE, recursive = TRUE, no.. = TRUE))})
-	names(data) <- sample.list
-	return(data)
-}
-```
 # A note about using SCTransform versus `ScaleData`
 https://bioconductor.org/packages/3.10/workflows/vignettes/simpleSingleCell/inst/doc/batch.html#62_for_gene-based_analyses
 >You can also normalize and scale data for the RNA assay. There are numerous resources on this, but Aaron Lun describes why the original log-normalized values should be used for DE and visualizations of expression quite well here:
@@ -51,54 +42,64 @@ Mess with how to load 4 cell populations into single seurat object
 
 SET SEED?????!!!!!
 
+## Set global variables
 
 ```{r}
-data_files.list<-read_10XGenomics_data(data)
-seurat.object.data<-Read10X(data_files.list)
-seurat.object<- CreateSeuratObject(raw.data = seurat.object.data, min.cells = 3, min.genes = 200, project = projectName)
-seurat.object<- create_percentMito_column(seurat.object)
+projectName <- "msAggr"
+```
 
+
+
+```{r}
+source("msAggr_AnalysisCode/read_10XGenomics_data.R")
+
+```
+
+
+```{r}
+setwd("../cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
+data_file.list <- read_10XGenomics_data(sample.list = c("LSKm2", "CMPm2", "MEPm", "GMPm"))
+seurat.object.data<-Read10X(data_file.list)
+```
+
+
+
+```{r}
+seurat.object<- CreateSeuratObject(counts = seurat.object.data, min.cells = 3, min.genes = 200, project = projectName)
 ```
 
 
 ```{r}
 seurat.object[["percent.mt"]] <- PercentageFeatureSet(seurat.object, pattern = "^mt-")
-VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3)
+VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident')
 ```
 
 
-```{r}
-plot1 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "orig.ident")
-plot2 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "orig.ident")
+```{r fig.width=4, fig.height=2}
+plot1 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "orig.ident", pt.size = 0.01)
+plot2 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "orig.ident", pt.size = 0.01)
 plot1 + plot2
 ```
 
 
 remove low quality cells
-require: nFeature_RNA between 200 and 2500 (inclusive)
+require: nFeature_RNA between 200 and 4000 (inclusive)
 --require: percent.mt <5--???
+
 ```{r}
-print(paste("original object", seurat.object, sep = " "))
+print(paste("original object:", nrow(seurat.object@meta.data), "cells", sep = " "))
 seurat.object <- subset(seurat.object, 
 												subset = nFeature_RNA >=200 & 
-													nFeature_RNA <= 2500
+													nFeature_RNA <= 4000
 												)
-print(paste("new object", seurat.object, sep = " "))
-```
-
-
-```{r}
-seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+print(paste("new object:", nrow(seurat.object@meta.data), "cells", sep = " "))
 ```
 
 
 
-Find variable features
+## Normalization
 
-```{r}
-seurat.object <- FindVariableFeatures(seurat.object, selection.method = "vst", nfeatures = 2000)
-```
-
+Struggling to wrap my head around this one. It seems that SCTransform is best for batch correction, but `NormalizeData` and `ScaleData` are best for DGE. Several vignettes have performed both
 
 `selection.method	
 How to choose top variable features. Choose one of :
@@ -108,4 +109,46 @@ vst: First, fits a line to the relationship of log(variance) and log(mean) using
 mean.var.plot (mvp): First, uses a function to calculate average expression (mean.function) and dispersion (dispersion.function) for each feature. Next, divides features into num.bin (deafult 20) bins based on their average expression, and calculates z-scores for dispersion within each bin. The purpose of this is to identify variable features while controlling for the strong relationship between variability and average expression.
 
 dispersion (disp): selects the genes with the highest dispersion values`
+
+
+
+
+```{r}
+seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+```
+
+
+
+
+```{r}
+seurat.object <- FindVariableFeatures(seurat.object, selection.method = "vst", nfeatures = 2000)
+```
+
+Find variable features
+```{r fig.width = 5, fig.height = 2}
+seurat.object <- FindVariableFeatures(seurat.object, selection.method = "vst", nfeatures = 2000)
+top10 <- head(VariableFeatures(seurat.object), 10)
+plot1 <- VariableFeaturePlot(seurat.object)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+plot1 + plot2
+
+```
+
+Scale data (linear transformation)
+
+```{r}
+all.genes <- rownames(seurat.object)
+seurat.object <- ScaleData(seurat.object, features = all.genes)
+```
+
+
+## PCA
+
+linear dimensional reduction. Default are based on VariableFeatures, but can be changed
+
+```{r}
+seurat.object <- 
+```
+
+
 
