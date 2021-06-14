@@ -12,6 +12,7 @@ knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/")
 library(dplyr)
 library(Seurat)
 library(patchwork)
+library(ggplot2)
 ```
 store session info
 ```{r}
@@ -68,7 +69,14 @@ seurat.object.data<-Read10X(data_file.list)
 seurat.object<- CreateSeuratObject(counts = seurat.object.data, min.cells = 3, min.genes = 200, project = projectName)
 ```
 
+Clean up to free memory
 
+```{r}
+remove(seurat.object.data)
+```
+
+
+Add mitochondrial metadata and plot some basic features
 ```{r}
 seurat.object[["percent.mt"]] <- PercentageFeatureSet(seurat.object, pattern = "^mt-")
 VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident')
@@ -142,13 +150,137 @@ seurat.object <- ScaleData(seurat.object, features = all.genes)
 ```
 
 
+### Save progress
+
+```{r}
+save.image(file = paste0(projectName, '.RData'))
+```
+
+
 ## PCA
 
 linear dimensional reduction. Default are based on VariableFeatures, but can be changed
 
 ```{r}
-seurat.object <- 
+seurat.object <- RunPCA(seurat.object, features = VariableFeatures(object = seurat.object))
+```
+
+
+```{r fig.width=4, fig.height=4}
+VizDimLoadings(seurat.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 2)
+```
+
+DimPlot colored by orig.ident
+```{r}
+DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
 ```
 
 
 
+Let's put in a concerted effort to pick the right dimensionality using the newest software
+
+```{r}
+seurat.object <- JackStraw(seurat.object, num.replicate = 100, dims = 40) #runs ~50 min
+seurat.object <- ScoreJackStraw(seurat.object, dims = 1:40)
+save.image(paste0(projectName, ".RData"))
+```
+
+
+Draw dim.reduction plots
+
+```{r}
+# plot1 <- JackStrawPlot(seurat.object, dims = 1:50)
+```
+```{r, figures-side, fig.show='hold', out.width="50%"}
+ElbowPlot(seurat.object, ndims = 50)
+percent.variance(seurat.object@reductions$pca@stdev)
+
+```
+Number of PCs describing X% of variance
+
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
+paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
+paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
+paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
+
+```
+
+
+
+
+36 PCs describe 95% percent of variance, but one of the earlier critiques was that too many dimensions were included. Best way to deal with this is probably to try a couple of different ones. Let's start with 36 because I dare to rebel.
+
+```{r}
+seurat.object <- FindNeighbors(seurat.object, dims = 1:36)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+```
+
+
+
+
+
+
+Generate UMAP data
+```{r}
+seurat.object <- RunUMAP(seurat.object, dims = 1:36) # took < 1 min
+```
+
+
+Plot the results
+```{r}
+DimPlot(seurat.object, 
+				reduction = "umap"
+				) + ggtitle("msAggr dim36 res0.5")
+
+```
+
+```{r}
+DimPlot(seurat.object,
+				reduction = "umap", 
+				group.by = "orig.ident"
+				) + ggtitle("msAggt dim36 orig.ident")
+```
+
+
+
+```{r}
+saveRDS(seurat.object, file = "msAggr_dim36.rds")
+```
+
+Not a fan of how "swoopy" it looks. Could be to many dimensions? May as well try 90%
+
+```{r}
+seurat.object <- FindNeighbors(seurat.object, dims = 1:24)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1:24)
+```
+
+
+
+
+Plot the results
+```{r}
+DimPlot(seurat.object, 
+				reduction = "umap"
+				) + ggtitle("msAggr dim24 res0.5")
+
+```
+
+```{r}
+DimPlot(seurat.object,
+				reduction = "umap", 
+				group.by = "orig.ident"
+				) + ggtitle("msAggt dim24 orig.ident")
+```
+
+
+
+```{r}
+saveRDS(seurat.object, file = "msAggr_dim24.rds")
+```
+
+
+
+24 vs 36 dimensions doesn't seem to make that much difference RE overall relationships. Should probbaly create two separate objects and try a few plotting methods.
