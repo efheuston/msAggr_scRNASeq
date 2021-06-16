@@ -1,0 +1,288 @@
+---
+title: "msAggr_sctransform-v1"
+output: html_notebook
+---
+
+Creating new pipeline using seurat v4.0.2 available 2021.06.08
+
+Load libraries required for Seuratv4
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/")
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(clustree)
+```
+store session info
+```{r}
+sink("msAggr_sct-v1.20210615")
+sessionInfo()
+sink()
+```
+
+# A note about using SCTransform versus `ScaleData`
+https://bioconductor.org/packages/3.10/workflows/vignettes/simpleSingleCell/inst/doc/batch.html#62_for_gene-based_analyses
+>You can also normalize and scale data for the RNA assay. There are numerous resources on this, but Aaron Lun describes why the original log-normalized values should be used for DE and visualizations of expression quite well here:
+>
+>For gene-based procedures like differential expression (DE) analyses or gene network construction, it is desirable to use the original log-expression values or counts. The corrected values are only used to obtain cell-level results such as clusters or trajectories. Batch effects are handled explicitly using blocking terms or via a meta-analysis across batches. We do not use the corrected values directly in gene-based analyses, for various reasons:
+>
+>It is usually inappropriate to perform DE analyses on batch-corrected values, due to the failure to model the uncertainty of the correction. This usually results in loss of type I error control, i.e., more false positives than expected.
+>
+>The correction does not preserve the mean-variance relationship. Applications of common DE methods like edgeR or limma are unlikely to be valid.
+>
+>Batch correction may (correctly) remove biological differences between batches in the course of mapping all cells onto a common coordinate system. Returning to the uncorrected expression values provides an opportunity for detecting such differences if they are of interest. Conversely, if the batch correction made a mistake, the use of the uncorrected expression values provides an important sanity check.
+>
+>In addition, the normalized values in SCT and integrated assays don't necessary correspond to per-gene expression values anyway, rather containing residuals (in the case of the scale.data slot for each).
+
+
+Load 4 populations into single seurat object
+
+
+SET SEED?????!!!!!
+
+# Set global variables
+```{r}
+projectName <- "msAggr_sct"
+jackstraw.dim <- 40
+```
+
+
+
+```{r}
+source("msAggr_AnalysisCode/read_10XGenomics_data.R")
+
+```
+
+
+```{r}
+setwd("../cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
+data_file.list <- read_10XGenomics_data(sample.list = c("LSKm2", "CMPm2", "MEPm", "GMPm"))
+object.data <-Read10X(data_file.list)
+```
+
+
+
+```{r}
+seurat.object<- CreateSeuratObject(counts = object.data, min.cells = 3, min.genes = 200, project = projectName)
+```
+
+Clean up to free memory
+
+```{r}
+remove(seurat.object.data)
+```
+
+
+Add mitochondrial metadata and plot some basic features
+```{r}
+seurat.object[["percent.mt"]] <- PercentageFeatureSet(seurat.object, pattern = "^mt-")
+VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident', )
+```
+
+
+```{r fig.width=4, fig.height=2}
+plot1 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "orig.ident", pt.size = 0.01)
+plot2 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "orig.ident", pt.size = 0.01)
+plot1 + plot2
+```
+remove low quality cells **
+require: nFeature_RNA between 200 and 4000 (inclusive)
+--require: percent.mt <5--???
+
+\** In previous run it's possible that we'll need to limit percent.mt because of MEPm weirdness. Will have to see if the additional 2000 MEPm cells found by cellranger v6
+
+```{r}
+print(paste("original object:", nrow(seurat.object@meta.data), "cells", sep = " "))
+seurat.object <- subset(seurat.object, 
+												subset = nFeature_RNA >=200 & 
+													nFeature_RNA <= 4000
+												)
+print(paste("new object:", nrow(seurat.object@meta.data), "cells", sep = " "))
+seurat.object <- PercentageFeatureSet(seurat.object, pattern = '^mt-', col.name = "percent.mt")
+```
+
+
+
+## SCTransform
+
+As previously mentioned, `SCTransform()` is best for batch correction, whereas `NormalizeData()`, `ScaleData()`, and `FindVariableFeatures()` are best for DGE. I'm struggling to make stable clusters, so I'm jumping ahead to `SCTransform()`.  
+It does appear that `SCTransform()` data are stored in the SCT assay slot, which does not overwrite other normalization slots. It will become the default slot once populated.
+
+```{r}
+seurat.object <- SCTransform(seurat.object, 
+														 method = "glmGamPoi", 
+														 vars.to.regress = c("nCount_RNA", "nFeature_RNA")
+														 ) # method = "glmGamPoi" speeds process
+```
+
+Tada! Now lets do some plotting and clustering!
+
+linear dimensional reduction. Default are based on VariableFeatures, but can be changed
+
+```{r}
+seurat.object <- RunPCA(seurat.object, features = VariableFeatures(object = seurat.object), verbose = FALSE)
+```
+
+
+```{r fig.width=4, fig.height=4}
+VizDimLoadings(seurat.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 2)
+```
+
+DimPlot colored by orig.ident
+```{r}
+DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
+```
+
+```{r}
+source("msAggr_AnalysisCode/PercentVariance.R")
+```
+
+```{r, figures-side, fig.show='hold', out.width="50%"}
+ElbowPlot(seurat.object, ndims = 50)
+percent.variance(seurat.object@reductions$pca@stdev)
+```
+# Variance described by dimensionality
+Number of PCs describing X% of variance
+
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
+paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
+paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
+paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
+
+```
+
+# Dim33
+
+Cover 95% variability
+
+```{r}
+ndim <- 33
+```
+
+
+```{r}
+seurat.object <- RunUMAP(seurat.object, dims = 1:ndim)
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndim)
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+```
+Plotting...
+
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = ("SCT_snn_res"), x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = colorRamps::primary.colors(n = length(levels(seurat.object@meta.data[[meta.col]])))
+											) + 
+			ggtitle(paste0("msAggr sct dim31 res", gsub("SCT_snn_res", "", meta.col) ))
+		plot(myplot)
+	}
+}
+```
+
+
+
+
+```{r}
+saveRDS(seurat.object, file = "msAggr_sctdim33.rds")
+```
+
+## Evaluate cluster stability
+Must ensure we have the right cluster stability, that is, cells that start in the same cluster tend to stay in the same cluster. If your data is over-clustered, cells will bounce between groups.
+
+Following [this tutorial by Matt O.].https://towardsdatascience.com/10-tips-for-choosing-the-optimal-number-of-clusters-277e93d72d92.
+
+### Clustree
+Previously my favourite has been Clustree, which gives a nice visual
+NB: For some reason `clustree::clustree()` didn't work, whereas `library(clustree)` followed by `clustree()` did.
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "SCT_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+```
+
+Basically no stability difference compared to before.
+
+
+
+
+
+# Dim22
+
+Cover 90% variability
+
+```{r}
+ndim <- 22
+```
+
+
+```{r}
+seurat.object <- RunUMAP(seurat.object, dims = 1:ndim)
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndim)
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+```
+Plotting...
+
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = ("SCT_snn_res"), x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = colorRamps::primary.colors(n = length(levels(seurat.object@meta.data[[meta.col]])))
+											) + 
+			ggtitle(paste0("msAggr sct dim", ndim, "res", gsub("SCT_snn_res", "", meta.col) ))
+		plot(myplot)
+	}
+}
+```
+
+
+
+
+```{r}
+saveRDS(seurat.object, file = paste0("msAggr_sctdim", ndim, ".rds"))
+```
+
+## Evaluate cluster stability
+Must ensure we have the right cluster stability, that is, cells that start in the same cluster tend to stay in the same cluster. If your data is over-clustered, cells will bounce between groups.
+
+Following [this tutorial by Matt O.].https://towardsdatascience.com/10-tips-for-choosing-the-optimal-number-of-clusters-277e93d72d92.
+
+### Clustree
+Previously my favourite has been Clustree, which gives a nice visual
+NB: For some reason `clustree::clustree()` didn't work, whereas `library(clustree)` followed by `clustree()` did.
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "SCT_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+```
+
+Hard to tell if dim33 or dim22 is better, but if *feels* like dim22 has less cross-over between res0.5 and res1.0. Will continue at dim22, and see how things change between res0.5 and res1.0 
+
+```{r}
+# Number of filtered cells left in each pop
+sapply(c("LSKm2", "CMPm2", "MEPm", "GMPm"), function(x) (c(nrow(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x,]))))
+```
+## MitoC in 
+
+```{r}
+for (x in c("LSKm2", "CMPm2", "MEPm", "GMPm")){
+	h = hist(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x, 'percent.mt'], breaks = 30, plot = FALSE)
+	h$density = h$counts/sum(h$counts)*100
+	plot(h,freq=FALSE, main =  paste(x, "percent mitoC"), xlab = "percent mitoC", ylab = "Frequency")
+}
+
+
+

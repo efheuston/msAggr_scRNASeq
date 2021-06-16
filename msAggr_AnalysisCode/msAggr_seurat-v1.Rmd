@@ -13,6 +13,7 @@ library(dplyr)
 library(Seurat)
 library(patchwork)
 library(ggplot2)
+library(clustree)
 ```
 store session info
 ```{r}
@@ -47,6 +48,7 @@ SET SEED?????!!!!!
 
 ```{r}
 projectName <- "msAggr"
+jackstraw.dim <- 40
 ```
 
 
@@ -79,7 +81,7 @@ remove(seurat.object.data)
 Add mitochondrial metadata and plot some basic features
 ```{r}
 seurat.object[["percent.mt"]] <- PercentageFeatureSet(seurat.object, pattern = "^mt-")
-VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident')
+VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident', )
 ```
 
 
@@ -180,8 +182,9 @@ DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
 Let's put in a concerted effort to pick the right dimensionality using the newest software
 
 ```{r}
-seurat.object <- JackStraw(seurat.object, num.replicate = 100, dims = 40) #runs ~50 min
-seurat.object <- ScoreJackStraw(seurat.object, dims = 1:40)
+jackstraw.dim <- 40
+seurat.object <- JackStraw(seurat.object, num.replicate = 100, dims = jackstraw.dim) #runs ~50 min
+seurat.object <- ScoreJackStraw(seurat.object, dims = 1:jackstraw.dim)
 save.image(paste0(projectName, ".RData"))
 ```
 
@@ -189,12 +192,11 @@ save.image(paste0(projectName, ".RData"))
 Draw dim.reduction plots
 
 ```{r}
-# plot1 <- JackStrawPlot(seurat.object, dims = 1:50)
+JackStrawPlot(seurat.object, dims = 25:36)
 ```
 ```{r, figures-side, fig.show='hold', out.width="50%"}
 ElbowPlot(seurat.object, ndims = 50)
 percent.variance(seurat.object@reductions$pca@stdev)
-
 ```
 Number of PCs describing X% of variance
 
@@ -207,8 +209,8 @@ paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
 
 ```
 
-
-
+# KNN dimensional reduction
+## Dim36
 
 36 PCs describe 95% percent of variance, but one of the earlier critiques was that too many dimensions were included. Best way to deal with this is probably to try a couple of different ones. Let's start with 36 because I dare to rebel.
 
@@ -249,12 +251,14 @@ DimPlot(seurat.object,
 saveRDS(seurat.object, file = "msAggr_dim36.rds")
 ```
 
-Not a fan of how "swoopy" it looks. Could be to many dimensions? May as well try 90%
+
+## Dim24
+36 dimensions looks very "swoopy". might have asked for too many dimensions. Will try dim = 24, which accounts for 90% of variance
 
 ```{r}
-seurat.object <- FindNeighbors(seurat.object, dims = 1:24)
-seurat.object <- FindClusters(seurat.object, resolution = 0.5)
-seurat.object <- RunUMAP(seurat.object, dims = 1:24)
+# seurat.object <- FindNeighbors(seurat.object, dims = 1:24)
+# seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+# seurat.object <- RunUMAP(seurat.object, dims = 1:24)
 ```
 
 
@@ -262,25 +266,193 @@ seurat.object <- RunUMAP(seurat.object, dims = 1:24)
 
 Plot the results
 ```{r}
-DimPlot(seurat.object, 
-				reduction = "umap"
-				) + ggtitle("msAggr dim24 res0.5")
+# DimPlot(seurat.object, 
+# 				reduction = "umap"
+# 				) + ggtitle("msAggr dim24 res0.5")
 
 ```
 
 ```{r}
-DimPlot(seurat.object,
-				reduction = "umap", 
-				group.by = "orig.ident"
-				) + ggtitle("msAggt dim24 orig.ident")
+# DimPlot(seurat.object,
+# 				reduction = "umap", 
+# 				group.by = "orig.ident"
+# 				) + ggtitle("msAggt dim24 orig.ident")
 ```
 
 
 
+```{r}
+# saveRDS(seurat.object, file = "msAggr_dim24.rds")
+```
+
+
+## KNN conclusion
+24 vs 36 dimensions doesn't seem to make that much difference RE overall relationships between cells. Should probbaly create two separate objects and try a few plotting methods, but will start by focusing on 36 dimensions.
+
+# Cluster analysis
+
+Will proceed with dim = 36 and do clustering analysis with a range of clusters. Later can do the tree-based over-clustering assessment
+
+```{r}
+seurat.object <- readRDS("msAggr_dim36.rds")
+```
+
+
+## Generate cluster profiles
+Picking range of resolutions
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+seurat.object <- RunUMAP(seurat.object, dims = 1:36)
+```
+
+Plot the clustering over different resolutions. Going to need a much better color palette, or try mixing in some different symbols
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = colorRamps::primary.colors(n = length(levels(seurat.object@meta.data[[meta.col]])))
+											) + 
+			ggtitle(paste0("msAggr dim36 res", gsub("RNA_snn_res", "", meta.col) ))
+		plot(myplot)
+	}
+}
+```
+
+
+
+
+```{r}
+# saveRDS(seurat.object, file = "msAggr_dim36.rds")
+```
+
+## Evaluate cluster stability
+Must ensure we have the right cluster stability, that is, cells that start in the same cluster tend to stay in the same cluster. If your data is over-clustered, cells will bounce between groups.
+
+Following [this tutorial by Matt O.].https://towardsdatascience.com/10-tips-for-choosing-the-optimal-number-of-clusters-277e93d72d92.
+
+### Clustree
+Previously my favourite has been Clustree, which gives a nice visual
+NB: For some reason `clustree::clustree()` didn't work, whereas `library(clustree)` followed by `clustree()` did.
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+```
+
+
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", expres = 'data', node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+```
+
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", expres = 'scale.data', node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+```
+
+
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", expres = 'counts', node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+```
+
+
+
+
+These data suggest that node stability is aweful! Need to figure out if this is a dimensional reduction error or a clustering error.
+
+
+# Why are clusters so unstable?
+Differences could include:
+* cells in each population (cellranger v6 includes more cells than cellranger v1, especially in MEP)
+* dimensionality is incorrect
+* ScaleData didnt account for regression factors (e.g., "nCounts_RNA" or "nFeatures_RNA")
+* Incorrect normalization/scaling method
+* Clustering is too strict or not strict enough
+* neighborhood analysis used wrong parameters
+* Should include mitoC filter (there's a chunk of MEP w/ mitoC @ ~40%)
+* SCTransform accounts better for sources of variability
+
+```{r}
+# Number of filtered cells left in each pop
+sapply(c("LSKm2", "CMPm2", "MEPm", "GMPm"), function(x) (c(nrow(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x,]))))
+```
+
+```{r}
+for (x in c("LSKm2", "CMPm2", "MEPm", "GMPm")){
+	h = hist(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x, 'percent.mt'], breaks = 30, plot = FALSE)
+	h$density = h$counts/sum(h$counts)*100
+	plot(h,freq=FALSE, main =  paste(x, "percent mitoC"), xlab = "percent mitoC", ylab = "Frequency")
+}
+```
+
+Looks like MEPm is the only sample with that huge MitoC % lump @ 40%. What do these cells look like, otherwise?
+
+```{r fig.width=5}
+VlnPlot(subset(seurat.object, subset = orig.ident == "MEPm"), 
+				features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1, pt.size = 0, fill.by = 'ident', flip = TRUE)
+```
+Save dim36 as is and try clustering analysis @ dim24
+```{r}
+saveRDS(seurat.object, file = "msAggr_AnalysisCode/msAggr_dim36.rds")
+```
+
+
+
+# Repeat clustering with dim24
+One possibility is that I've included too many dimensions. Will see if 90% increases stability.
+
+```{r}
+seurat.object <- FindNeighbors(seurat.object, dims = 1:24)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1:24)
+```
+
+Save object
 ```{r}
 saveRDS(seurat.object, file = "msAggr_dim24.rds")
 ```
 
 
 
-24 vs 36 dimensions doesn't seem to make that much difference RE overall relationships. Should probbaly create two separate objects and try a few plotting methods.
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = colorRamps::primary.colors(n = length(levels(seurat.object@meta.data[[meta.col]])))
+											) + 
+			ggtitle(paste0("msAggr dim36 res", gsub("RNA_snn_res", "", meta.col) ))
+		plot(myplot)
+	}
+}
+```
+
+
+
+
+## Evaluate cluster stability
+Must ensure we have the right cluster stability, that is, cells that start in the same cluster tend to stay in the same cluster. If your data is over-clustered, cells will bounce between groups.
+
+Following [this tutorial by Matt O.].https://towardsdatascience.com/10-tips-for-choosing-the-optimal-number-of-clusters-277e93d72d92.
+
+### Clustree
+Previously my favourite has been Clustree, which gives a nice visual
+NB: For some reason `clustree::clustree()` didn't work, whereas `library(clustree)` followed by `clustree()` did.
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+```
+
+Think I'll explore regression factors using SCTransform in new document.
