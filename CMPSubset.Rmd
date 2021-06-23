@@ -478,6 +478,111 @@ for (cluster in unique(seurat.object@meta.data$clust.ID)){
 ```
 
 
+# Distinguishing features of clusters
+Previously defined biomark genes based on PC contributions. Original list was based on *all* msAggr, but let's see how CMP subset does?
+```{r fig.height = 30, fig.width=6}
+VizDimLoadings(seurat.object, dims = 1:10, nfeatures = 30, reduction = "pca", ncol = 2)
+```
+
+```{r}
+pca.df <- seurat.object[["pca"]]
+pca.df <- as.data.frame(as.matrix(slot(object = pca.df, name = "feature.loadings")))
+print(seurat.object[["pca"]], dims = 2, nfeatures = 5)
+rownames(pca.df[pca.df$PC_2 %in% sort(pca.df$PC_2, decreasing = TRUE)[1:5], ])
+rownames(pca.df[pca.df$PC_2 %in% sort(pca.df$PC_2)[1:5], ])
+```
+
+now we can get a list of principal components!  
+first pull the list of oldAnalysis CMP top PC genes
+```{r}
+cmp.biomark <- read.table(file = "/Users/heustonef/Desktop/CMPSubpops/BioMark/ProbePanels/CMP_PCTopGenes.txt", sep = "\t", header = TRUE)
+biomark.cmptargets <- c()
+for(df.col in 1:ncol(cmp.biomark)){
+	biomark.cmptargets <- c(biomark.cmptargets, biomark[,df.col])
+}
+print(colnames(biomark))
+print(paste("total gene count:", length(biomark.cmptargets)))
+```
+
+Now get the list of current pc gene trgets (oldAnalysis used ndim = 1:6, so we'll start with that range)
+```{r}
+pc.list <- c("PC_1", "PC_2", "PC_3", "PC_4", "PC_5", "PC_6")
+pc.genes <- lapply(pc.list, function(x) rownames(pca.df[pca.df[[x]] %in% sort(pca.df[[x]], decreasing = TRUE)[1:30],])) #targeting roughly 180 genes like in biomark.cmptargets
+pc.genes <- unique(unlist(pc.genes))
+print(paste("total gene count:", length(pc.genes)))
+```
+
+Now compare the lists, I guess:
+
+```{r}
+# setdiff(x,y) gives you things in x not in y. setdiff(y,x) gives you things in y not in x
+setdiff(biomark.cmptargets, pc.genes)
+# print(paste("\n length:", length(setdiff(biomark.cmptargets, pc.genes))))
+writeLines(c("", "length:", length(setdiff(biomark.cmptargets, pc.genes))))
+```
+Umm, yeah that went kinda how I expected. Let's do this again, but for the actual biomark gene lists.
+```{r}
+biomark <- read.table(file = "/Users/heustonef/Desktop/CMPSubpops/BioMark/ProbePanels/BiomarkProbeList.txt", sep = "\t")
+biomark <- biomark[,1]
+setdiff(biomark, pc.genes)
+writeLines(c("", "length:", length(setdiff(biomark, pc.genes))))
+```
+
+
+What if we increase the number of pcs but decrease the depth of each? This might cover more of `biomark	`, which was originally developed using msAggr instead of only the CMP subset
+```{r}
+pc.list <- c("PC_1", "PC_2", "PC_3", "PC_4", "PC_5", "PC_6", "PC_7", "PC_8", "PC_9", "PC_10")
+pc.genes <- lapply(pc.list, function(x) rownames(pca.df[pca.df[[x]] %in% sort(pca.df[[x]], decreasing = TRUE)[1:20],]))
+pc.genes <- unique(unlist(pc.genes))
+print(paste("total gene count:", length(pc.genes)))
+
+```
+```{r}
+setdiff(biomark, pc.genes)
+writeLines(c("", "length:", length(setdiff(biomark, pc.genes))))
+```
+
+For comparison, let's just see how many of `biomark.cmptargets` were actually included in `biomark`
+```{r}
+setdiff(biomark.cmptargets, biomark)
+writeLines(c("", "length:", length(setdiff(biomark.cmptargets, pc.genes))))
+```
+```{r}
+length(biomark) - length(setdiff(biomark, biomark.cmptargets))
+```
+```{r}
+length(biomark) - length(setdiff(biomark, pc.genes))
+```
+So when you look at it like that, it's not actually that far off.
+
+
+What are the similarities?:
+```{r}
+setdiff(setdiff(biomark, biomark.cmptargets), setdiff(biomark, pc.genes))
+```
+These are genes from the 97probes not in the old CMP set that are also not in the new CMP set. Other than Itga2b (which is a failed probe anyway), nothing screams. Also we'd have thrown Flt3 and Cd34 for in anyway because they're requisite cell surface markers (also Flt3 surface marker is expensive but otherwise not noteworthy and not used in the current sorting strategy)
+
+What about cell surface marker expression?
+* Cd34
+* Cd16/32
+* Cd9
+* Cd41
+* Cd48
+* Sca1 (just throw that in for sh*&s and giggles)
+```{r, fig.height = 15, fig.width=10}
+surface.markers <- c("Cd34", "Fcgr3", "Fcgr2b", "Cd9", "Itga2b", "Cd48", "Ly6a")
+FeaturePlot(seurat.object, features = surface.markers, pt.size = 1, split.by = "clust.ID", ncol = 1)
+```
+Save as png
+```{r}
+png(filename = "FeaturePlot_CMP_surfaceMarkers_clustIDfacet.png", height = 1600, width = 1600)
+FeaturePlot(seurat.object, features = surface.markers, pt.size = 1, split.by = "clust.ID", ncol = 1)
+dev.off()
+```
+
+
+
+
 
 # Cell cycle analysis
 Just so we know what we're working with
