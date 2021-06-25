@@ -556,28 +556,158 @@ saveRDS(seurat.object, file = paste0(projectName, &quot;_dim&quot;, ndims, &quot
 <p>Plot UMAP</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm9yKHggaW4gYygwLjUsIDEsIDEuNSwgMiwgMi41KSl7XG5cdHNldXJhdC5vYmplY3QgPC0gRmluZENsdXN0ZXJzKHNldXJhdC5vYmplY3QsIHJlc29sdXRpb24gPSB4KVxufVxuYGBgIn0= -->
-<pre class="r"><code>for(x in c(0.5, 1, 1.5, 2, 2.5)){
-    seurat.object &lt;- FindClusters(seurat.object, resolution = x)
-}</code></pre>
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxudG90LnZhciA8LSBwZXJjZW50LnZhcmlhbmNlKHNldXJhdC5vYmplY3RAcmVkdWN0aW9ucyRwY2FAc3RkZXYsIHBsb3QudmFyID0gRkFMU0UsIHJldHVybi52YWwgPSBUUlVFKVxubmRpbXMgPC0gbGVuZ3RoKHdoaWNoKGN1bXN1bSh0b3QudmFyKSA8PSA5MCkpXG5cbnNldXJhdC5vYmplY3QgPC0gRmluZE5laWdoYm9ycyhzZXVyYXQub2JqZWN0LCBkaW1zID0gMTpuZGltcylcbmBgYCJ9 -->
+<pre class="r"><code>tot.var &lt;- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims &lt;- length(which(cumsum(tot.var) &lt;= 90))
+
+seurat.object &lt;- FindNeighbors(seurat.object, dims = 1:ndims)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiQ29tcHV0aW5nIG5lYXJlc3QgbmVpZ2hib3IgZ3JhcGhcbiJ9 -->
+<pre><code>Computing nearest neighbor graph</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiQ29tcHV0aW5nIFNOTlxuIn0= -->
+<pre><code>Computing SNN</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc2V1cmF0Lm9iamVjdCA8LSBGaW5kQ2x1c3RlcnMoc2V1cmF0Lm9iamVjdCwgcmVzb2x1dGlvbiA9IDAuNSlcbmBgYCJ9 -->
+<pre class="r"><code>seurat.object &lt;- FindClusters(seurat.object, resolution = 0.5)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTW9kdWxhcml0eSBPcHRpbWl6ZXIgdmVyc2lvbiAxLjMuMCBieSBMdWRvIFdhbHRtYW4gYW5kIE5lZXMgSmFuIHZhbiBFY2tcblxuTnVtYmVyIG9mIG5vZGVzOiAxMjA1OVxuTnVtYmVyIG9mIGVkZ2VzOiA0NTI5OTlcblxuUnVubmluZyBMb3V2YWluIGFsZ29yaXRobS4uLlxuIn0= -->
+<pre><code>Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 12059
+Number of edges: 452999
+
+Running Louvain algorithm...</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiMCUgICAxMCAgIDIwICAgMzAgICA0MCAgIDUwICAgNjAgICA3MCAgIDgwICAgOTAgICAxMDAlXG5bLS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXxcbioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqfFxuIn0= -->
+<pre><code>0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTWF4aW11bSBtb2R1bGFyaXR5IGluIDEwIHJhbmRvbSBzdGFydHM6IDAuODUwMlxuTnVtYmVyIG9mIGNvbW11bml0aWVzOiA5XG5FbGFwc2VkIHRpbWU6IDEgc2Vjb25kc1xuIn0= -->
+<pre><code>Maximum modularity in 10 random starts: 0.8502
+Number of communities: 9
+Elapsed time: 1 seconds</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc2V1cmF0Lm9iamVjdCA8LSBSdW5VTUFQKHNldXJhdC5vYmplY3QsIGRpbXMgPSAxOiBuZGltcylcbmBgYCJ9 -->
+<pre class="r"><code>seurat.object &lt;- RunUMAP(seurat.object, dims = 1: ndims)</code></pre>
+<!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiV2FybmluZzogVGhlIGRlZmF1bHQgbWV0aG9kIGZvciBSdW5VTUFQIGhhcyBjaGFuZ2VkIGZyb20gY2FsbGluZyBQeXRob24gVU1BUCB2aWEgcmV0aWN1bGF0ZSB0byB0aGUgUi1uYXRpdmUgVVdPVCB1c2luZyB0aGUgY29zaW5lIG1ldHJpY1xuVG8gdXNlIFB5dGhvbiBVTUFQIHZpYSByZXRpY3VsYXRlLCBzZXQgdW1hcC5tZXRob2QgdG8gJ3VtYXAtbGVhcm4nIGFuZCBtZXRyaWMgdG8gJ2NvcnJlbGF0aW9uJ1xuVGhpcyBtZXNzYWdlIHdpbGwgYmUgc2hvd24gb25jZSBwZXIgc2Vzc2lvblxuMDk6NDc6MjYgVU1BUCBlbWJlZGRpbmcgcGFyYW1ldGVycyBhID0gMC45OTIyIGIgPSAxLjExMlxuMDk6NDc6MjYgUmVhZCAxMjA1OSByb3dzIGFuZCBmb3VuZCAzMyBudW1lcmljIGNvbHVtbnNcbjA5OjQ3OjI2IFVzaW5nIEFubm95IGZvciBuZWlnaGJvciBzZWFyY2gsIG5fbmVpZ2hib3JzID0gMzBcbjA5OjQ3OjI2IEJ1aWxkaW5nIEFubm95IGluZGV4IHdpdGggbWV0cmljID0gY29zaW5lLCBuX3RyZWVzID0gNTBcbjAlICAgMTAgICAyMCAgIDMwICAgNDAgICA1MCAgIDYwICAgNzAgICA4MCAgIDkwICAgMTAwJVxuWy0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18XG4qKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKnxcbjA5OjQ3OjI3IFdyaXRpbmcgTk4gaW5kZXggZmlsZSB0byB0ZW1wIGZpbGUgL3Zhci9mb2xkZXJzLzRmL2Z3cmo2Zm5uMWRuNGc4d3NmMHp2NTYzaGpzdmwyNC9ULy9SdG1wSjNlb0k4L2ZpbGVmZDU0NWNhMjhlZlxuMDk6NDc6MjggU2VhcmNoaW5nIEFubm95IGluZGV4IHVzaW5nIDEgdGhyZWFkLCBzZWFyY2hfayA9IDMwMDBcbjA5OjQ3OjMwIEFubm95IHJlY2FsbCA9IDEwMCVcbjA5OjQ3OjMxIENvbW1lbmNpbmcgc21vb3RoIGtOTiBkaXN0YW5jZSBjYWxpYnJhdGlvbiB1c2luZyAxIHRocmVhZFxuMDk6NDc6MzEgSW5pdGlhbGl6aW5nIGZyb20gbm9ybWFsaXplZCBMYXBsYWNpYW4gKyBub2lzZVxuMDk6NDc6MzIgQ29tbWVuY2luZyBvcHRpbWl6YXRpb24gZm9yIDIwMCBlcG9jaHMsIHdpdGggNTEzMjk0IHBvc2l0aXZlIGVkZ2VzXG4wJSAgIDEwICAgMjAgICAzMCAgIDQwICAgNTAgICA2MCAgIDcwICAgODAgICA5MCAgIDEwMCVcblstLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfFxuKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKip8XG4wOTo0NzozNyBPcHRpbWl6YXRpb24gZmluaXNoZWRcbiJ9 -->
+<pre><code>Warning: The default method for RunUMAP has changed from calling Python UMAP via reticulate to the R-native UWOT using the cosine metric
+To use Python UMAP via reticulate, set umap.method to &#39;umap-learn&#39; and metric to &#39;correlation&#39;
+This message will be shown once per session
+09:47:26 UMAP embedding parameters a = 0.9922 b = 1.112
+09:47:26 Read 12059 rows and found 33 numeric columns
+09:47:26 Using Annoy for neighbor search, n_neighbors = 30
+09:47:26 Building Annoy index with metric = cosine, n_trees = 50
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+09:47:27 Writing NN index file to temp file /var/folders/4f/fwrj6fnn1dn4g8wsf0zv563hjsvl24/T//RtmpJ3eoI8/filefd545ca28ef
+09:47:28 Searching Annoy index using 1 thread, search_k = 3000
+09:47:30 Annoy recall = 100%
+09:47:31 Commencing smooth kNN distance calibration using 1 thread
+09:47:31 Initializing from normalized Laplacian + noise
+09:47:32 Commencing optimization for 200 epochs, with 513294 positive edges
+0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|
+09:47:37 Optimization finished</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc2F2ZVJEUyhzZXVyYXQub2JqZWN0LCBmaWxlID0gcGFzdGUwKHByb2plY3ROYW1lLCBcIl9kaW1cIiwgbmRpbXMsIFwiLlJEU1wiKSlcbmBgYCJ9 -->
+<pre class="r"><code>saveRDS(seurat.object, file = paste0(projectName, &quot;_dim&quot;, ndims, &quot;.RDS&quot;))</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm9yIChtZXRhLmNvbCBpbiBjb2xuYW1lcyhzZXVyYXQub2JqZWN0QG1ldGEuZGF0YSkpe1xuXHRpZihncmVwbChwYXR0ZXJuID0gKFwiUk5BX3Nubl9yZXNcIiksIHggPSBtZXRhLmNvbCk9PVRSVUUpe1xuXHRcdG15cGxvdCA8LSBEaW1QbG90KHNldXJhdC5vYmplY3QsIFxuXHRcdFx0XHRcdFx0XHRcdFx0XHRcdGdyb3VwLmJ5ID0gbWV0YS5jb2wsXG5cdFx0XHRcdFx0XHRcdFx0XHRcdFx0cmVkdWN0aW9uID0gXCJ1bWFwXCIsIFxuXHRcdFx0XHRcdFx0XHRcdFx0XHRcdGNvbHMgPSBjb2xvci5wYWxldHRlXG5cdFx0XHRcdFx0XHRcdFx0XHRcdFx0KSArIFxuXHRcdFx0Z2d0aXRsZShwYXN0ZTAocHJvamVjdE5hbWUsIFwiIGRpbVwiLCBuZGltcywgXCJyZXNcIiwgZ3N1YihcIlJOQV9zbm5fcmVzXCIsIFwiXCIsIG1ldGEuY29sKSApKVxuXHRcdHBsb3QobXlwbG90KVxuXHR9XG59XG5gYGAifQ== -->
-<pre class="r"><code>for (meta.col in colnames(seurat.object@meta.data)){
-    if(grepl(pattern = (&quot;RNA_snn_res&quot;), x = meta.col)==TRUE){
-        myplot &lt;- DimPlot(seurat.object, 
-                                            group.by = meta.col,
-                                            reduction = &quot;umap&quot;, 
-                                            cols = color.palette
-                                            ) + 
-            ggtitle(paste0(projectName, &quot; dim&quot;, ndims, &quot;res&quot;, gsub(&quot;RNA_snn_res&quot;, &quot;&quot;, meta.col) ))
-        plot(myplot)
-    }
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZm9yKHggaW4gYygwLjUsIDEsIDEuNSwgMiwgMi41KSl7XG5cdHNldXJhdC5vYmplY3QgPC0gRmluZENsdXN0ZXJzKHNldXJhdC5vYmplY3QsIHJlc29sdXRpb24gPSB4KVxufVxuYGBgIn0= -->
+<pre class="r"><code>for(x in c(0.5, 1, 1.5, 2, 2.5)){
+    seurat.object &lt;- FindClusters(seurat.object, resolution = x)
 }</code></pre>
 <!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTW9kdWxhcml0eSBPcHRpbWl6ZXIgdmVyc2lvbiAxLjMuMCBieSBMdWRvIFdhbHRtYW4gYW5kIE5lZXMgSmFuIHZhbiBFY2tcblxuTnVtYmVyIG9mIG5vZGVzOiAxMjA1OVxuTnVtYmVyIG9mIGVkZ2VzOiA0NTI5OTlcblxuUnVubmluZyBMb3V2YWluIGFsZ29yaXRobS4uLlxuIn0= -->
+<pre><code>Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 12059
+Number of edges: 452999
+
+Running Louvain algorithm...</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiMCUgICAxMCAgIDIwICAgMzAgICA0MCAgIDUwICAgNjAgICA3MCAgIDgwICAgOTAgICAxMDAlXG5bLS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXxcbioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqfFxuIn0= -->
+<pre><code>0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTWF4aW11bSBtb2R1bGFyaXR5IGluIDEwIHJhbmRvbSBzdGFydHM6IDAuODUwMlxuTnVtYmVyIG9mIGNvbW11bml0aWVzOiA5XG5FbGFwc2VkIHRpbWU6IDEgc2Vjb25kc1xuTW9kdWxhcml0eSBPcHRpbWl6ZXIgdmVyc2lvbiAxLjMuMCBieSBMdWRvIFdhbHRtYW4gYW5kIE5lZXMgSmFuIHZhbiBFY2tcblxuTnVtYmVyIG9mIG5vZGVzOiAxMjA1OVxuTnVtYmVyIG9mIGVkZ2VzOiA0NTI5OTlcblxuUnVubmluZyBMb3V2YWluIGFsZ29yaXRobS4uLlxuIn0= -->
+<pre><code>Maximum modularity in 10 random starts: 0.8502
+Number of communities: 9
+Elapsed time: 1 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 12059
+Number of edges: 452999
+
+Running Louvain algorithm...</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiMCUgICAxMCAgIDIwICAgMzAgICA0MCAgIDUwICAgNjAgICA3MCAgIDgwICAgOTAgICAxMDAlXG5bLS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXxcbioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqfFxuIn0= -->
+<pre><code>0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTWF4aW11bSBtb2R1bGFyaXR5IGluIDEwIHJhbmRvbSBzdGFydHM6IDAuNzk3NFxuTnVtYmVyIG9mIGNvbW11bml0aWVzOiAxN1xuRWxhcHNlZCB0aW1lOiAxIHNlY29uZHNcbk1vZHVsYXJpdHkgT3B0aW1pemVyIHZlcnNpb24gMS4zLjAgYnkgTHVkbyBXYWx0bWFuIGFuZCBOZWVzIEphbiB2YW4gRWNrXG5cbk51bWJlciBvZiBub2RlczogMTIwNTlcbk51bWJlciBvZiBlZGdlczogNDUyOTk5XG5cblJ1bm5pbmcgTG91dmFpbiBhbGdvcml0aG0uLi5cbiJ9 -->
+<pre><code>Maximum modularity in 10 random starts: 0.7974
+Number of communities: 17
+Elapsed time: 1 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 12059
+Number of edges: 452999
+
+Running Louvain algorithm...</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiMCUgICAxMCAgIDIwICAgMzAgICA0MCAgIDUwICAgNjAgICA3MCAgIDgwICAgOTAgICAxMDAlXG5bLS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXxcbioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqfFxuIn0= -->
+<pre><code>0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTWF4aW11bSBtb2R1bGFyaXR5IGluIDEwIHJhbmRvbSBzdGFydHM6IDAuNzY1MlxuTnVtYmVyIG9mIGNvbW11bml0aWVzOiAyMlxuRWxhcHNlZCB0aW1lOiAxIHNlY29uZHNcbk1vZHVsYXJpdHkgT3B0aW1pemVyIHZlcnNpb24gMS4zLjAgYnkgTHVkbyBXYWx0bWFuIGFuZCBOZWVzIEphbiB2YW4gRWNrXG5cbk51bWJlciBvZiBub2RlczogMTIwNTlcbk51bWJlciBvZiBlZGdlczogNDUyOTk5XG5cblJ1bm5pbmcgTG91dmFpbiBhbGdvcml0aG0uLi5cbiJ9 -->
+<pre><code>Maximum modularity in 10 random starts: 0.7652
+Number of communities: 22
+Elapsed time: 1 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 12059
+Number of edges: 452999
+
+Running Louvain algorithm...</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiMCUgICAxMCAgIDIwICAgMzAgICA0MCAgIDUwICAgNjAgICA3MCAgIDgwICAgOTAgICAxMDAlXG5bLS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXxcbioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqfFxuIn0= -->
+<pre><code>0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTWF4aW11bSBtb2R1bGFyaXR5IGluIDEwIHJhbmRvbSBzdGFydHM6IDAuNzQwNFxuTnVtYmVyIG9mIGNvbW11bml0aWVzOiAyN1xuRWxhcHNlZCB0aW1lOiAxIHNlY29uZHNcbk1vZHVsYXJpdHkgT3B0aW1pemVyIHZlcnNpb24gMS4zLjAgYnkgTHVkbyBXYWx0bWFuIGFuZCBOZWVzIEphbiB2YW4gRWNrXG5cbk51bWJlciBvZiBub2RlczogMTIwNTlcbk51bWJlciBvZiBlZGdlczogNDUyOTk5XG5cblJ1bm5pbmcgTG91dmFpbiBhbGdvcml0aG0uLi5cbiJ9 -->
+<pre><code>Maximum modularity in 10 random starts: 0.7404
+Number of communities: 27
+Elapsed time: 1 seconds
+Modularity Optimizer version 1.3.0 by Ludo Waltman and Nees Jan van Eck
+
+Number of nodes: 12059
+Number of edges: 452999
+
+Running Louvain algorithm...</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiMCUgICAxMCAgIDIwICAgMzAgICA0MCAgIDUwICAgNjAgICA3MCAgIDgwICAgOTAgICAxMDAlXG5bLS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXwtLS0tfC0tLS18LS0tLXxcbioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKioqfFxuIn0= -->
+<pre><code>0%   10   20   30   40   50   60   70   80   90   100%
+[----|----|----|----|----|----|----|----|----|----|
+**************************************************|</code></pre>
+<!-- rnb-output-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiTWF4aW11bSBtb2R1bGFyaXR5IGluIDEwIHJhbmRvbSBzdGFydHM6IDAuNzE4OVxuTnVtYmVyIG9mIGNvbW11bml0aWVzOiAzMFxuRWxhcHNlZCB0aW1lOiAxIHNlY29uZHNcbiJ9 -->
+<pre><code>Maximum modularity in 10 random starts: 0.7189
+Number of communities: 30
+Elapsed time: 1 seconds</code></pre>
+<!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 <p>For each resolution, what percentage of cells in each cluster are enriched for one of our clust.IDs?</p>

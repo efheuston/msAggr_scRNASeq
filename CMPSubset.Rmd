@@ -16,10 +16,10 @@ library(ggplot2)
 # library(clustree)
 ```
 store session info
-```{r}
-sink("CMP-v1.20210616.txt")
+```{r }
+# sink("CMP-v1.20210616.txt")
 sessionInfo()
-sink()
+# sink()
 ```
 
 # Set global variables
@@ -106,17 +106,24 @@ plot1 + plot2
 
 Scale data (linear transformation)
 
-```{r}
+```{r echo = FALSE}
 all.genes <- rownames(seurat.object)
 seurat.object <- ScaleData(seurat.object, features = all.genes, vars.to.regress = c("nFeature_RNA", "nCount_RNA"))
 ```
+
+## Save raw object
+```{r}
+saveRDS(seurat.object, file = paste0(projectName, "_raw.RDS"))
+```
+
+
 
 ```{r}
 seurat.object <- RunPCA(seurat.object, features = VariableFeatures(seurat.object), ndims.print = 1:5, nfeatures.print = 5)
 ```
 
 ```{r}
-DimPlot(seurat.object, reduction = "pca")
+DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
 VizDimLoadings(seurat.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
 
 ```
@@ -137,29 +144,7 @@ paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
 
 ```
 
-# Cluster cells
-
-Let's take 90% of variance
-```{r}
-ndims <- 33
-```
-
-
-```{r}
-seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
-seurat.object <- FindClusters(seurat.object, resolution = 0.5)
-```
-## Generate UMAP
-```{r}
-seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
-```
-Plot UMAP
-
-```{r}
-DimPlot(seurat.object)
-```
-
-## Add cluster IDs from Seurat v1
+# Add cluster IDs from Seurat v1
 
 Exported cell IDs for clusters 3, 17, 10, 11 from Seurat v1. Will add these IDs as a metadata column.  
 Create column "clust.ID" and populate with 0's. Then import IDs for clusters
@@ -183,8 +168,6 @@ seurat.object@meta.data['clust.ID'] <- 0
 head(seurat.object@meta.data)
 ```
 
-
-
 now map new ids
 ```{r}
 seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust3.cells] <- 3
@@ -194,12 +177,81 @@ seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust11.
 ```
 
 do numbers make sense?
-
 ```{r}
 nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 10,])
 nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 11,])
 nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 17,])
 nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 3,])
+```
+
+### Color palette
+```{r}
+color.palette <- c(
+	"coral",
+	"chartreuse4",
+	"goldenrod1",
+	"cadetblue1",
+	"burlywood",
+	"brown",
+	"brown1",
+	"blue",
+	"blue4",
+	"azure3",
+	"aquamarine",
+	"antiquewhite",
+	"cadetblue",
+	"gold3",
+	"black",
+	"darkgreen",
+	"deeppink",
+	"darkviolet",
+	"darkturquoise",
+	"darkslategray",
+	"darksalmon",
+	"darkorchid1",
+	"darkolivegreen2",
+	"forestgreen",
+	"dodgerblue",
+	"green",
+	"lightpink",
+	"lightcoral",
+	"khaki1",
+	"maroon",
+	"peru",
+	"lightseagreen",
+	"lightsalmon",
+	"plum",
+	"moccasin",
+	"tan",
+	"tan1", 
+	"red", 
+	"purple",
+	"khaki4",
+	"black", 
+	"plum4"
+)
+```
+
+# Cluster cells
+
+Let's take 90% of variance
+```{r}
+ndims <- 33
+```
+
+
+```{r}
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+```
+## Generate UMAP
+```{r}
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+```
+Plot UMAP
+
+```{r}
+DimPlot(seurat.object)
 ```
 
 
