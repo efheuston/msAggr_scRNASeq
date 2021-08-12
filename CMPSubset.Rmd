@@ -46,7 +46,7 @@ object.data <-Read10X(data_file.list)
 
 
 ```{r}
-seurat.object<- CreateSeuratObject(counts = object.data, min.cells = 3, min.genes = 200, project = projectName)
+cmp.object<- CreateSeuratObject(counts = object.data, min.cells = 3, min.genes = 200, project = projectName)
 ```
 
 Clean up to free memory
@@ -58,14 +58,14 @@ remove(object.data)
 
 Add mitochondrial metadata and plot some basic features
 ```{r}
-seurat.object[["percent.mt"]] <- PercentageFeatureSet(seurat.object, pattern = "^mt-")
-VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident', )
+cmp.object[["percent.mt"]] <- PercentageFeatureSet(cmp.object, pattern = "^mt-")
+VlnPlot(cmp.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident', )
 ```
 
 
 ```{r}
-plot1 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "orig.ident", pt.size = 0.01)
-plot2 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "orig.ident", pt.size = 0.01)
+plot1 <- FeatureScatter(cmp.object, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "orig.ident", pt.size = 0.01)
+plot2 <- FeatureScatter(cmp.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "orig.ident", pt.size = 0.01)
 plot1 + plot2
 ```
 
@@ -78,27 +78,27 @@ require: nFeature_RNA between 200 and 4000 (inclusive)
 require: percent.mt <=5
 
 ```{r}
-print(paste("original object:", nrow(seurat.object@meta.data), "cells", sep = " "))
-seurat.object <- subset(seurat.object, 
+print(paste("original object:", nrow(cmp.object@meta.data), "cells", sep = " "))
+cmp.object <- subset(cmp.object, 
 												subset = nFeature_RNA >=200 & 
 													nFeature_RNA <= 4000 & 
 													percent.mt <= 5
 												)
-print(paste("new object:", nrow(seurat.object@meta.data), "cells", sep = " "))
+print(paste("new object:", nrow(cmp.object@meta.data), "cells", sep = " "))
 ```
 
 
 
 ```{r}
-seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+cmp.object <- NormalizeData(cmp.object, normalization.method = "LogNormalize", scale.factor = 10000)
 ```
 
 
 Find variable features
 ```{r fig.width = 5, fig.height = 2}
-seurat.object <- FindVariableFeatures(seurat.object, selection.method = "vst", nfeatures = 2000)
-top10 <- head(VariableFeatures(seurat.object), 10)
-plot1 <- VariableFeaturePlot(seurat.object)
+cmp.object <- FindVariableFeatures(cmp.object, selection.method = "vst", nfeatures = 2000)
+top10 <- head(VariableFeatures(cmp.object), 10)
+plot1 <- VariableFeaturePlot(cmp.object)
 plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
 plot1 + plot2
 
@@ -107,36 +107,36 @@ plot1 + plot2
 Scale data (linear transformation)
 
 ```{r echo = FALSE}
-all.genes <- rownames(seurat.object)
-seurat.object <- ScaleData(seurat.object, features = all.genes, vars.to.regress = c("nFeature_RNA", "nCount_RNA"))
+all.genes <- rownames(cmp.object)
+cmp.object <- ScaleData(cmp.object, features = all.genes, vars.to.regress = c("nFeature_RNA", "nCount_RNA"))
 ```
 
 ## Save raw object
 ```{r}
-saveRDS(seurat.object, file = paste0(projectName, "_raw.RDS"))
+saveRDS(cmp.object, file = paste0(projectName, "_raw.RDS"))
 ```
 
 
 
 ```{r}
-seurat.object <- RunPCA(seurat.object, features = VariableFeatures(seurat.object), ndims.print = 1:5, nfeatures.print = 5)
+cmp.object <- RunPCA(cmp.object, features = VariableFeatures(cmp.object), ndims.print = 1:5, nfeatures.print = 5)
 ```
 
 ```{r}
-DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
-VizDimLoadings(seurat.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
+DimPlot(cmp.object, reduction = "pca", group.by = "orig.ident")
+VizDimLoadings(cmp.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
 
 ```
 
 Calculate dimensionality
 ```{r, figures-side, fig.show='hold', out.width="50%"}
-ElbowPlot(seurat.object, ndims = 50)
-percent.variance(seurat.object@reductions$pca@stdev)
+ElbowPlot(cmp.object, ndims = 50)
+percent.variance(cmp.object@reductions$pca@stdev)
 ```
 Number of PCs describing X% of variance
 
 ```{r}
-tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+tot.var <- percent.variance(cmp.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
 paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
 paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
@@ -164,24 +164,24 @@ clust11.cells <- sapply(clust11.cells, function(x) paste0(gsub("CMP", "CMPm2", x
 
 Add new metadata column
 ```{r}
-seurat.object@meta.data['clust.ID'] <- 0
-head(seurat.object@meta.data)
+cmp.object@meta.data['clust.ID'] <- 0
+head(cmp.object@meta.data)
 ```
 
 now map new ids
 ```{r}
-seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust3.cells] <- 3
-seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust17.cells] <- 17
-seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust10.cells] <- 10
-seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust11.cells] <- 11
+cmp.object@meta.data$clust.ID[rownames(cmp.object@meta.data) %in% clust3.cells] <- 3
+cmp.object@meta.data$clust.ID[rownames(cmp.object@meta.data) %in% clust17.cells] <- 17
+cmp.object@meta.data$clust.ID[rownames(cmp.object@meta.data) %in% clust10.cells] <- 10
+cmp.object@meta.data$clust.ID[rownames(cmp.object@meta.data) %in% clust11.cells] <- 11
 ```
 
 do numbers make sense?
 ```{r}
-nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 10,])
-nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 11,])
-nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 17,])
-nrow(seurat.object@meta.data[seurat.object@meta.data$clust.ID == 3,])
+nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 10,])
+nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 11,])
+nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 17,])
+nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 3,])
 ```
 
 ### Color palette
@@ -236,27 +236,27 @@ color.palette <- c(
 ## Neighborhood and umap
 set total.var <- 90%
 ```{r}
-tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+tot.var <- percent.variance(cmp.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 ndims <- length(which(cumsum(tot.var) <= 90))
 
-seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
-seurat.object <- FindClusters(seurat.object, resolution = 0.5)
-seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
+cmp.object <- FindClusters(cmp.object, resolution = 0.5)
+cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
 
-saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
+saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 Plot UMAP
 
 ```{r}
 for(x in c(0.5, 1, 1.5, 2, 2.5)){
-	seurat.object <- FindClusters(seurat.object, resolution = x)
+	cmp.object <- FindClusters(cmp.object, resolution = x)
 }
 ```
 
 ```{r}
-for (meta.col in colnames(seurat.object@meta.data)){
+for (meta.col in colnames(cmp.object@meta.data)){
 	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
-		myplot <- DimPlot(seurat.object, 
+		myplot <- DimPlot(cmp.object, 
 											group.by = meta.col,
 											reduction = "umap", 
 											cols = color.palette
@@ -268,18 +268,43 @@ for (meta.col in colnames(seurat.object@meta.data)){
 ```
 
 
+for each resolution, number/percentage of cells in each cluster?
+
+```{r}
+tot.cells <- nrow(cmp.object@meta.data)
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		new.clusters <- sort(as.numeric(levels(cmp.object@meta.data[[meta.col]])))
+		stats.df <- data.frame(matrix(ncol = 2, nrow = length(new.clusters)))
+		colnames(stats.df) <- c("num_cells", "pct_pop")
+		rownames(stats.df) <- new.clusters
+		meta.df <- cmp.object@meta.data
+		for(row.id in rownames(stats.df)){
+				num.x <- nrow(meta.df[meta.df[meta.col] == row.id,])
+				pct.x <- as.integer(num.x / tot.cells *100)
+				# print(pct.x)
+				stats.df[row.id, "num_cells"] <- num.x
+				stats.df[row.id, "pct_pop"] <- pct.x
+		}
+		print(stats.df)
+	}
+}
+```
+
+
+
 For each resolution, what percentage of cells in each cluster are enriched for one of our clust.IDs?
 
 
 Test: what percentage of each new clusterID matches one of the older clusters?
 ```{r}
-for (meta.col in colnames(seurat.object@meta.data)){
+for (meta.col in colnames(cmp.object@meta.data)){
 	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
-		new.clusters <- sort(as.numeric(levels(seurat.object@meta.data[[meta.col]])))
+		new.clusters <- sort(as.numeric(levels(cmp.object@meta.data[[meta.col]])))
 		enrich.df <- data.frame(matrix(ncol = 4, nrow = length(new.clusters)))
 		colnames(enrich.df) <- c(3, 17, 10, 11)
 		rownames(enrich.df) <- new.clusters
-		meta.df <- seurat.object@meta.data
+		meta.df <- cmp.object@meta.data
 		for(row.id in rownames(enrich.df)){
 			tot.clus <- nrow(meta.df[meta.df[[meta.col]] == row.id,])
 			for(col.id in colnames(enrich.df)){
@@ -304,14 +329,14 @@ Absolutely terrible overlap, no enrichment of any of these across the new cluste
 time for the super scarey moment to see if the cells from seuratv1 still cluster together on in seurat v4
 
 ```{r fig.width = 4}
-DimPlot(seurat.object,
+DimPlot(cmp.object,
 				reduction = "umap",
 				group.by = "clust.ID", 
 				# split.by = "orig.ident",
 				cols = c("gray", "orange", "blue", "red", "green"),)
 ```
 ```{r fig.width = 4}
-DimPlot(seurat.object,
+DimPlot(cmp.object,
 				reduction = "umap",
 				group.by = "orig.ident", 
 				split.by = "clust.ID",
@@ -323,20 +348,20 @@ DimPlot(seurat.object,
 ## Neighborhood and umap
 set total.var <- 95%
 ```{r}
-tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+tot.var <- percent.variance(cmp.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 ndims <- length(which(cumsum(tot.var) <= 95))
 
-seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
-seurat.object <- FindClusters(seurat.object, resolution = 0.5)
-seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
+cmp.object <- FindClusters(cmp.object, resolution = 0.5)
+cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
 
-saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
+saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 Plot UMAP
 
 ```{r}
 for(x in c(0.5, 1, 1.5, 2, 2.5)){
-	seurat.object <- FindClusters(seurat.object, resolution = x)
+	cmp.object <- FindClusters(cmp.object, resolution = x)
 }
 ```
 
@@ -347,13 +372,13 @@ For each resolution, what percentage of cells in each cluster are enriched for o
 
 Test: what percentage of each new clusterID matches one of the older clusters?
 ```{r}
-for (meta.col in colnames(seurat.object@meta.data)){
+for (meta.col in colnames(cmp.object@meta.data)){
 	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
-		new.clusters <- sort(as.numeric(levels(seurat.object@meta.data[[meta.col]])))
+		new.clusters <- sort(as.numeric(levels(cmp.object@meta.data[[meta.col]])))
 		enrich.df <- data.frame(matrix(ncol = 4, nrow = length(new.clusters)))
 		colnames(enrich.df) <- c(3, 17, 10, 11)
 		rownames(enrich.df) <- new.clusters
-		meta.df <- seurat.object@meta.data
+		meta.df <- cmp.object@meta.data
 		for(row.id in rownames(enrich.df)){
 			tot.clus <- nrow(meta.df[meta.df[[meta.col]] == row.id,])
 			for(col.id in colnames(enrich.df)){
@@ -378,7 +403,7 @@ Absolutely terrible overlap, no enrichment of any of these across the new cluste
 time for the super scarey moment to see if the cells from seuratv1 still cluster together on in seurat v4
 
 ```{r fig.width = 2}
-DimPlot(seurat.object,
+DimPlot(cmp.object,
 				reduction = "umap",
 				group.by = "clust.ID", 
 				pt.size = .1,
@@ -386,7 +411,7 @@ DimPlot(seurat.object,
 				cols = c("gray", "orange", "blue", "red", "green"),)
 ```
 ```{r fig.width = 4}
-DimPlot(seurat.object,
+DimPlot(cmp.object,
 				reduction = "umap",
 				group.by = "orig.ident", 
 				split.by = "clust.ID",
@@ -399,7 +424,7 @@ DimPlot(seurat.object,
 Let's see if we can get some gene expression profiles on these...
 ```{r, fig.height=10, fig.width=18}
 gene.list <- c("Gata1", "Gata2", "Pf4", "Dntt", "Mpo", "Meis1", "Irf8", "Elane", "Fli1", "Zfpm1")
-VlnPlot(seurat.object, features = gene.list, group.by = "clust.ID", pt.size = 0.01, cols = c("gray", "orange", "blue", "red", "green"))
+VlnPlot(cmp.object, features = gene.list, group.by = "clust.ID", pt.size = 0.01, cols = c("gray", "orange", "blue", "red", "green"))
 ```
 
 
@@ -416,8 +441,8 @@ calculate `FindAllMarkers()` for different idents and save to new file
 ```{r}
 ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1", "RNA_snn_res.1.5", "RNA_snn_res.2", "RNA_snn_res.2.5", "clust.ID")
 for(tested.ident in ident.list){
-	Idents(seurat.object) <- tested.ident
-	all.markers <- FindAllMarkers(seurat.object)
+	Idents(cmp.object) <- tested.ident
+	all.markers <- FindAllMarkers(cmp.object)
 	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
 									 file = paste0(projectName, "_FindALLMarkers_res2.5.xlsx"), 
 									 sheetName = tested.ident, 
@@ -429,8 +454,8 @@ for(tested.ident in ident.list){
 
 Create `FindAllMarkers()` lists for GSEA
 ```{r}
-Idents(seurat.object) <- "RNA_snn_res.2.5"
-res.2.5.allmarkers <- FindAllMarkers(seurat.object)
+Idents(cmp.object) <- "RNA_snn_res.2.5"
+res.2.5.allmarkers <- FindAllMarkers(cmp.object)
 ```
 
 Map HGNC symbols
@@ -465,8 +490,8 @@ calculate `FindMarkers()` that distinguish each cluster (might overlab between c
 ```{r}
 ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1", "RNA_snn_res.1.5", "RNA_snn_res.2", "RNA_snn_res.2.5", "clust.ID")
 for(tested.ident in ident.list){
-	for (cluster in sort(as.numeric(levels(seurat.object@meta.data[[tested.ident]])))){
-	cluster.markers <- FindMarkers(seurat.object, ident.1 = cluster)
+	for (cluster in sort(as.numeric(levels(cmp.object@meta.data[[tested.ident]])))){
+	cluster.markers <- FindMarkers(cmp.object, ident.1 = cluster)
 	xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
 									 file = paste0(projectName, "_FindMarkers_", gsub("RNA_snn_", "", tested.ident), ".xlsx"), 
 									 sheetName = paste0("clst", cluster), 
@@ -480,8 +505,8 @@ for(tested.ident in ident.list){
 
 
 ```{r}
-for (cluster in sort(as.numeric(levels(seurat.object@meta.data$RNA_snn_res.2.5)))){
-	cluster.markers <- FindMarkers(seurat.object, ident.1 = cluster)
+for (cluster in sort(as.numeric(levels(cmp.object@meta.data$RNA_snn_res.2.5)))){
+	cluster.markers <- FindMarkers(cmp.object, ident.1 = cluster)
 	xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
 									 file = paste0(projectName, "_FindMarkers_res2.5.xlsx"), 
 									 sheetName = paste0("clst", cluster), 
@@ -496,8 +521,8 @@ for (cluster in sort(as.numeric(levels(seurat.object@meta.data$RNA_snn_res.2.5))
 # DGE w/ metadata against clust.ID against "0"
 reset ident as "clust.ID" and rerun `FindAllMarkers()`
 ```{r}
-	Idents(seurat.object) <- "clust.ID"
-	all.markers <- FindAllMarkers(seurat.object)
+	Idents(cmp.object) <- "clust.ID"
+	all.markers <- FindAllMarkers(cmp.object)
 	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
 									 file = paste0(projectName, "_FindALLMarkers_clustID.xlsx"), 
 									 sheetName = "clustID", 
@@ -508,10 +533,10 @@ reset ident as "clust.ID" and rerun `FindAllMarkers()`
 
 
 ```{r}
-# Idents(seurat.object) <- "clust.ID"
-for (cluster in unique(seurat.object@meta.data$clust.ID)){
+# Idents(cmp.object) <- "clust.ID"
+for (cluster in unique(cmp.object@meta.data$clust.ID)){
 	print(cluster)
-	cluster.markers <- FindMarkers(seurat.object, ident.1 = cluster)
+	cluster.markers <- FindMarkers(cmp.object, ident.1 = cluster)
 	xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
 									 file = paste0(projectName, "_FindMarkers_clustID.xlsx"), 
 									 sheetName = paste0("oldclust", cluster), 
@@ -526,13 +551,13 @@ for (cluster in unique(seurat.object@meta.data$clust.ID)){
 # Distinguishing features of clusters
 Previously defined biomark genes based on PC contributions. Original list was based on *all* msAggr, but let's see how CMP subset does?
 ```{r fig.height = 30, fig.width=6}
-VizDimLoadings(seurat.object, dims = 1:10, nfeatures = 30, reduction = "pca", ncol = 2)
+VizDimLoadings(cmp.object, dims = 1:10, nfeatures = 30, reduction = "pca", ncol = 2)
 ```
 
 ```{r}
-pca.df <- seurat.object[["pca"]]
+pca.df <- cmp.object[["pca"]]
 pca.df <- as.data.frame(as.matrix(slot(object = pca.df, name = "feature.loadings")))
-print(seurat.object[["pca"]], dims = 2, nfeatures = 5)
+print(cmp.object[["pca"]], dims = 2, nfeatures = 5)
 rownames(pca.df[pca.df$PC_2 %in% sort(pca.df$PC_2, decreasing = TRUE)[1:5], ])
 rownames(pca.df[pca.df$PC_2 %in% sort(pca.df$PC_2)[1:5], ])
 ```
@@ -616,12 +641,12 @@ What about cell surface marker expression?
 * Sca1 (just throw that in for sh*&s and giggles)
 ```{r, fig.height = 15, fig.width=10}
 surface.markers <- c("Cd34", "Fcgr3", "Fcgr2b", "Cd9", "Itga2b", "Cd48", "Ly6a")
-FeaturePlot(seurat.object, features = surface.markers, pt.size = 1, split.by = "clust.ID", ncol = 1)
+FeaturePlot(cmp.object, features = surface.markers, pt.size = 1, split.by = "clust.ID", ncol = 1)
 ```
 Save as png
 ```{r}
 png(filename = "FeaturePlot_CMP_surfaceMarkers_clustIDfacet.png", height = 1600, width = 1600)
-FeaturePlot(seurat.object, features = surface.markers, pt.size = 1, split.by = "clust.ID", ncol = 1)
+FeaturePlot(cmp.object, features = surface.markers, pt.size = 1, split.by = "clust.ID", ncol = 1)
 dev.off()
 ```
 
@@ -639,8 +664,80 @@ g2m.genes <- cc.genes.updated.2019$g2m.genes
 ```
 
 
+# Compare @ hierarchcial clusteirng
+
+Do clustering using biomark RNAs as input
+```{r}
+# Read in BiomarkRNAs
+biomark.rnas <- read.table('/Users/heustonef/Desktop/10XGenomicsData/BiomarkRNAs.txt')
+biomark.rnas <- biomark.rnas$V1
+```
+
+use biomark RNAs to define dimensional reduction
+```{r}
+cmp.object <- readRDS("CMP_raw.RDS")
+cmp.object <- RunPCA(cmp.object, features = biomark.rnas, ndims.print = 1:5, , nfeatures.print = 5)
+ElbowPlot(cmp.object, ndims = 50)
+```
 
 
+Now run the clustering
+```{r}
+tot.var <- percent.variance(cmp.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims <- length(which(cumsum(tot.var) <= 90))
+
+cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
+cmp.object <- FindClusters(cmp.object, resolution = 0.5)
+cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
 
 
+```
+
+find the clusters
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	cmp.object <- FindClusters(cmp.object, resolution = x)
+}
+```
+
+Plot the umaps and cell cluster ids
+```{r}
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		myplot <- DimPlot(cmp.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = color.palette
+											) + 
+			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
+		plot(myplot)
+	}
+}
+```
+### Calculate anticipated number of cells you'll find in each biomark cluster
+Get # cells in each cluster
+
+```{r}
+tot.cellcount <- nrow(cmp.object@meta.data)
+res05.list <- sort(unique(cmp.object@meta.data$RNA_snn_res.0.5), decreasing = FALSE)
+sapply(res05.list, 
+			 function(x){
+			 	print(
+			 		paste(
+			 			"cluster", x, "=", 
+			 			nrow(cmp.object@meta.data[cmp.object@meta.data$RNA_snn_res.0.5 == x,]), 
+			 			"cells or", 
+			 			round(nrow(cmp.object@meta.data[cmp.object@meta.data$RNA_snn_res.0.5 == x,])/tot.cellcount*100, digits = 2), 
+			 			"% of total"
+			 		)
+			 	)
+			 }
+			)
+```
+
+So we did the dimensional reduction based on the biomark RNAs, then did our UMAP nearest neighbor clustering.
+
+
+In the biomark hierarchcial clustering analysis I assayed 167 cells. The smallest cluster I detected had 3 cells, or 1.8% of total, and this is an uncomfortably small number of cells. Based on the UMAP calculations I would therefore expect to find 11 or 12 of the predicted 15 clusters. I found 12, and I don't really like that last one, so 11 or 12. Since I did the hierarchcial clustering yesterday and did this math today, we can say it was independent of these results and therefore totally legit. Yay!!
 

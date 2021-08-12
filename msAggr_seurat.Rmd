@@ -11,7 +11,7 @@ Important notes:
 
 Load libraries required for Seuratv4
 
-```{r setup}
+```{r setup, message=FALSE, warning=FALSE}
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/")
 library(dplyr)
 library(Seurat)
@@ -295,12 +295,13 @@ set total.var <- 90%
 ```{r}
 tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 ndims <- length(which(cumsum(tot.var) <= 90))
+print(ndims)
 
 seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
 seurat.object <- FindClusters(seurat.object, resolution = 0.5)
 seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
 
-saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
+# saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 Plot UMAP
 
@@ -325,7 +326,39 @@ for (meta.col in colnames(seurat.object@meta.data)){
 ```
 
 
+Generate statistics for each cluster/resolution combo
+```{r}
+current_res <- 'RNA_snn_res.0.5'
+
+cluster_ids <- sort(unique(seurat.object@meta.data[,current_res]))
+counts_df <- data.frame(matrix(nrow = length(cluster_ids), ncol = 4))
+rownames(counts_df) <- cluster_ids
+colnames(counts_df) <- c("LSKm2", "CMPm2", "MEPm", "GMPm")
+for(id in cluster_ids){
+	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
+																						 	(seurat.object@meta.data$orig.ident == "LSKm2"),])
+	counts_df[id, "LSKm2"] = cell_value
+	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
+																						 	(seurat.object@meta.data$orig.ident == "LSKm2"),])
+	counts_df[id, "CMPm2"] = cell_value
+	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
+																						 	(seurat.object@meta.data$orig.ident == "MEPm"),])
+	counts_df[id, "MEPm"] = cell_value
+	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
+																						 	(seurat.object@meta.data$orig.ident == "GMPm"),])
+	counts_df[id, "GMPm"] = cell_value
+
+}
+
+```
+
+
+
+
+
+
 For each resolution, what percentage of cells in each cluster are enriched for one of our clust.IDs?
+
 
 
 Test: what percentage of each new clusterID matches one of the older clusters?
@@ -348,7 +381,7 @@ for (meta.col in colnames(seurat.object@meta.data)){
 		}
 		colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0("oldcluster", x))
 		rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0("newcluster", x))
-		xlsx::write.xlsx(enrich.df, file = paste0("PctOfNewClustersOverlappingOldClusters_", projectName, "_dim", ndims, ".xlsx"), sheetName = paste0(gsub("RNA_snn_", "", meta.col)), append = TRUE)
+		try{xlsx::write.xlsx(enrich.df, file = paste0("PctOfNewClustersOverlappingOldClusters_", projectName, "_dim", ndims, ".xlsx"), sheetName = paste0(gsub("RNA_snn_", "", meta.col)), append = TRUE)}
 		print(enrich.df)
 	}
 }
@@ -382,12 +415,13 @@ set total.var <- 95%
 ```{r}
 tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 ndims <- length(which(cumsum(tot.var) <= 95))
+print(ndims)
 
 seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
 seurat.object <- FindClusters(seurat.object, resolution = 0.5)
 seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
 
-saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
+# saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 Plot UMAP
 
