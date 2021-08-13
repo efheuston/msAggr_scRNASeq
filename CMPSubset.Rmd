@@ -8,7 +8,7 @@ output: html_notebook
 # Updates
 
 ## Update 2021.08.11
-Most thorough way to readdress differences between original and current analyses is to jsut redo the biomark. To that end, will restart analysis of *just* CMPm2, excluding other datasets (i.e., LSK, MEP, GMP). Will also keep 
+Most thorough way to readdress differences between original and current analyses is to jsut redo the biomark. To that end, will restart analysis of *just* CMPm2, excluding other datasets (i.e., LSK, MEP, GMP). Will also keep CMP3K as test set/ bio rep 1
 
 
 # Notebook setup
@@ -25,12 +25,6 @@ library(patchwork)
 library(ggplot2)
 # library(clustree)
 ```
-store session info
-```{r }
-# sink("CMP-v1.20210616.txt")
-sessionInfo()
-# sink()
-```
 
 # Set global variables
 ```{r}
@@ -38,6 +32,13 @@ projectName <- "CMP"
 jackstraw.dim <- 40
 ```
 
+store session info
+```{r }
+sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
+sink(sessionInfo.filename)
+sessionInfo()
+sink()
+```
 
 
 ```{r}
