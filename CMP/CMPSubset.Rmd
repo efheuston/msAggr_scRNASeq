@@ -3,8 +3,6 @@ title: "CMPSubset"
 output: html_notebook
 ---
 
-
-
 # Updates
 
 ## Update 2021.08.11
@@ -18,7 +16,6 @@ Creating new pipeline using seurat v4.0.2 available 2021.06.08
 Load libraries required for Seuratv4
 
 ```{r setup}
-knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/")
 library(dplyr)
 library(Seurat)
 library(patchwork)
