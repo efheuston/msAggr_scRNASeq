@@ -20,7 +20,7 @@ library(dplyr)
 library(Seurat)
 library(patchwork)
 library(ggplot2)
-# library(clustree)
+library(clustree)
 ```
 
 # Set global variables
@@ -30,22 +30,23 @@ jackstraw.dim <- 40
 ```
 
 store session info
-```{r }
-# sink("CMP-v1.20210616.txt")
+```{r}
+sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
+sink(sessionInfo.filename)
 sessionInfo()
-# sink()
+sink()
 ```
 
 
 ```{r}
-source("msAggr_AnalysisCode/read_10XGenomics_data.R")
-source("msAggr_AnalysisCode/PercentVariance.R")
-source("msAggr_AnalysisCode/Mouse2Human_idconversion.R")
+source("../RFunctions/read_10XGenomics_data.R")
+source("../RFunctions/PercentVariance.R")
+source("../RFunctions/Mouse2Human_idconversion.R")
 ```
 
 
-```{r}
-setwd("../cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
+```{r warning=FALSE}
+setwd("../../cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
 data_file.list <- read_10XGenomics_data(sample.list = "CMPm2")
 object.data <-Read10X(data_file.list)
 ```
@@ -75,11 +76,7 @@ plot1 <- FeatureScatter(cmp.object, feature1 = "nCount_RNA", feature2 = "percent
 plot2 <- FeatureScatter(cmp.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "orig.ident", pt.size = 0.01)
 plot1 + plot2
 ```
-
-We don't have to worry about comparing library depths, so we'll just do normalization/Scale data
-
-
-
+## Filter data
 remove low quality cells
 require: nFeature_RNA between 200 and 4000 (inclusive)
 require: percent.mt <=5
@@ -108,10 +105,10 @@ top10 <- head(VariableFeatures(cmp.object), 10)
 plot1 <- VariableFeaturePlot(cmp.object)
 plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
 plot1 + plot2
-
 ```
 
-Scale data (linear transformation)
+## Scale data (linear transformation)
+We don't have to worry about comparing library depths, so we'll just do normalization/Scale data
 
 ```{r echo = FALSE}
 all.genes <- rownames(cmp.object)
@@ -159,13 +156,13 @@ Create column "clust.ID" and populate with 0's. Then import IDs for clusters
 
 
 ```{r}
-clust3.cells <- read.table(file = "Seuratv1_clusterCellIDs/cluster3cellIDs.txt", col.names = "clust03")
+clust3.cells <- read.table(file = "../Seuratv1_clusterCellIDs/cluster3cellIDs.txt", col.names = "clust03")
 clust3.cells <- sapply(clust3.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
-clust17.cells <- read.table(file = "Seuratv1_clusterCellIDs/cluster17cellIDs.txt", col.names = "clust17")
+clust17.cells <- read.table(file = "../Seuratv1_clusterCellIDs/cluster17cellIDs.txt", col.names = "clust17")
 clust17.cells <- sapply(clust17.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
-clust10.cells <- read.table(file = "Seuratv1_clusterCellIDs/cluster10cellIDs.txt", col.names = "clust10")
+clust10.cells <- read.table(file = "../Seuratv1_clusterCellIDs/cluster10cellIDs.txt", col.names = "clust10")
 clust10.cells <- sapply(clust10.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
-clust11.cells <- read.table(file = "Seuratv1_clusterCellIDs/cluster11cellIDs.txt", col.names = "clust11")
+clust11.cells <- read.table(file = "../Seuratv1_clusterCellIDs/cluster11cellIDs.txt", col.names = "clust11")
 clust11.cells <- sapply(clust11.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
 ```
 
@@ -190,6 +187,18 @@ nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 11,])
 nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 17,])
 nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 3,])
 ```
+
+## Identify variable genes for new biomark
+```{r}
+length(cmp.object@assays$RNA@var.features)
+```
+```{r}
+top100.var <- cmp.object@assays$RNA@var.features[1:100]
+length(top100.var)
+```
+
+
+
 
 ### Color palette
 ```{r}
@@ -273,6 +282,15 @@ for (meta.col in colnames(cmp.object@meta.data)){
 	}
 }
 ```
+
+### Clustree
+what's the max resolution we can achieve while keepign clusters stable?
+```{r fig.width = 10, fig.height = 5}
+clustree(cmp.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability", exprs = "scale.data") + 
+    scale_color_continuous(low = 'red3', high = 'white')
+```
+I think I'm liking res.1.0 from this
+
 
 
 for each resolution, number/percentage of cells in each cluster?
@@ -460,12 +478,12 @@ for(tested.ident in ident.list){
 ```
 
 Create `FindAllMarkers()` lists for GSEA
-```{r}
+```{r }
 Idents(cmp.object) <- "RNA_snn_res.2.5"
 res.2.5.allmarkers <- FindAllMarkers(cmp.object)
 ```
 
-Map HGNC symbols
+## Map HGNC symbols
 ```{r}
 Mouse2HumanTable <- Mouse2Human(res.2.5.allmarkers$gene)
 
@@ -497,15 +515,22 @@ calculate `FindMarkers()` that distinguish each cluster (might overlab between c
 ```{r}
 ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1", "RNA_snn_res.1.5", "RNA_snn_res.2", "RNA_snn_res.2.5", "clust.ID")
 for(tested.ident in ident.list){
-	for (cluster in sort(as.numeric(levels(cmp.object@meta.data[[tested.ident]])))){
-	cluster.markers <- FindMarkers(cmp.object, ident.1 = cluster)
-	xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
-									 file = paste0(projectName, "_FindMarkers_", gsub("RNA_snn_", "", tested.ident), ".xlsx"), 
-									 sheetName = paste0("clst", cluster), 
-									 col.names = TRUE, 
-									 row.names = TRUE, 
-									 append = TRUE)
-}
+	object.copy <- cmp.object
+	Idents(object.copy) <- tested.ident
+	print(paste("testing", tested.ident))
+	for (cluster in sort(as.numeric(levels(object.copy@meta.data[[tested.ident]])))){
+		print(paste("looking at cluster", cluster))
+		cluster.markers <- FindMarkers(object.copy, ident.1 = cluster)
+		try(
+			xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
+											 file = paste0(projectName, "_FindMarkers_", gsub("RNA_snn_", "", tested.ident), ".xlsx"), 
+											 sheetName = paste0("clst", cluster), 
+											 col.names = TRUE, 
+											 row.names = TRUE, 
+											 append = TRUE)
+		)	
+	}
+	remove(object.copy)
 }
 ```
 
@@ -661,17 +686,9 @@ dev.off()
 
 
 
-# Cell cycle analysis
-Just so we know what we're working with
 
 
-```{r}
-s.genes <- cc.genes.updated.2019$s.genes
-g2m.genes <- cc.genes.updated.2019$g2m.genes
-```
-
-
-# Compare @ hierarchcial clusteirng
+# Compare @g hierarchcial clusteirng
 
 Do clustering using biomark RNAs as input
 ```{r}
