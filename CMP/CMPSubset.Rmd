@@ -42,6 +42,7 @@ sink()
 source("../RFunctions/read_10XGenomics_data.R")
 source("../RFunctions/PercentVariance.R")
 source("../RFunctions/Mouse2Human_idconversion.R")
+source ("../RFunctions/ColorPalette.R")
 ```
 
 
@@ -188,14 +189,7 @@ nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 17,])
 nrow(cmp.object@meta.data[cmp.object@meta.data$clust.ID == 3,])
 ```
 
-## Identify variable genes for new biomark
-```{r}
-length(cmp.object@assays$RNA@var.features)
-```
-```{r}
-top100.var <- cmp.object@assays$RNA@var.features[1:100]
-length(top100.var)
-```
+
 
 
 
@@ -340,13 +334,214 @@ cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
 cmp.object <- FindClusters(cmp.object, resolution = 0.5)
 cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
 
-saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 Plot UMAP
 
 ```{r}
 for(x in c(0.5, 1, 1.5, 2, 2.5)){
 	cmp.object <- FindClusters(cmp.object, resolution = x)
+saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
+}
+```
+
+```{r}
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		myplot <- DimPlot(cmp.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = color.palette
+											) + 
+			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
+		plot(myplot)
+	}
+}
+```
+
+### Clustree
+what's the max resolution we can achieve while keepign clusters stable?
+```{r fig.width = 10, fig.height = 5}
+plot.title <- paste0(projectName, "_clustree_ndim", max(cmp.object@commands$RunUMAP.RNA.pca$dims))
+my.clustree <- clustree(cmp.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability", exprs = "scale.data") + 
+	scale_color_continuous(low = 'red3', high = 'white') + 
+	ggtitle(plot.title)
+png(filename = paste0(plot.title, ".png"), height = 800, width = 1600)
+plot(my.clustree)
+dev.off()
+```
+
+
+
+for each resolution, number/percentage of cells in each cluster?
+
+```{r}
+tot.cells <- nrow(cmp.object@meta.data)
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		new.clusters <- sort(as.numeric(levels(cmp.object@meta.data[[meta.col]])))
+		stats.df <- data.frame(matrix(ncol = 2, nrow = length(new.clusters)))
+		colnames(stats.df) <- c("num_cells", "pct_pop")
+		rownames(stats.df) <- new.clusters
+		meta.df <- cmp.object@meta.data
+		for(row.id in rownames(stats.df)){
+				num.x <- nrow(meta.df[meta.df[meta.col] == row.id,])
+				pct.x <- as.integer(num.x / tot.cells *100)
+				# print(pct.x)
+				stats.df[row.id, "num_cells"] <- num.x
+				stats.df[row.id, "pct_pop"] <- pct.x
+		}
+		print(stats.df)
+	}
+}
+```
+
+## Identify variable genes for new biomark
+```{r}
+length(cmp.object@assays$RNA@var.features)
+```
+
+
+
+
+
+### Gene profiles of clusters
+set ident at res = 1 and get markers
+```{r}
+Idents(cmp.object) <- "RNA_snn_res.1"
+cmp.allmarkers.res1 <- FindAllMarkers(cmp.object)
+cmp.top100markers.res1 <- cmp.allmarkers.res1 %>% group_by(cluster) %>% top_n(n = 100, wt = abs(avg_log2FC))
+```
+
+```{r}
+cmp.top100markers.res1 <- cmp.allmarkers.res1 %>% group_by(cluster) %>% top_n(n = 100, wt = abs(avg_log2FC))
+cmp.top100markers.res1 <- cmp.top100markers.res1[cmp.top100markers.res1$p_val_adj <= 0.05, ]
+for(cluster in unique(cmp.top100markers.res1$cluster)){
+	num.hits <- nrow(cmp.top100markers.res1[cmp.top100markers.res1$cluster == cluster, ])
+	print(paste("cluster", cluster, "has", num.hits, "genes"))
+}
+```
+
+
+Find top.var	genes in cmp.top100markers.res1
+```{r}
+top.var <- cmp.object@assays$RNA@var.features[1:150]
+# top.var
+n.vargenes <- c()
+for(gene in top.var){
+	if(gene %in% cmp.top100markers.res1$gene){
+		n.vargenes <- c(n.vargenes, gene)
+	}
+}
+print(length(n.vargenes))
+top.var[!(top.var %in% n.vargenes)]
+```
+
+
+Lets try to export these, with genes on rows and clusters on columns, and xpression value in data table
+```{r}
+var.df <- cmp.top100markers.res1[cmp.top100markers.res1$gene %in% n.vargenes,]
+var.df <- subset.data.frame(var.df, select = c("gene", "cluster", "avg_log2FC"))
+var.df <- reshape2::dcast(var.df, gene~cluster, value.var = "avg_log2FC")
+xlsx::write.xlsx(var.df, file = paste0(projectName, "_dim", ndims, "_candididateBiomarkGenes.xlsx"), sheetName = "res1", append = TRUE, row.names = FALSE)
+
+```
+
+
+repeat for top.var	genes in cmp.top100markers.res1.5
+```{r}
+top.var <- cmp.object@assays$RNA@var.features[1:150]
+Idents(cmp.object) <- "RNA_snn_res.1.5"
+cmp.allmarkers.res1.5 <- FindAllMarkers(cmp.object)
+cmp.top100markers.res1.5 <- cmp.allmarkers.res1.5 %>% group_by(cluster) %>% top_n(n = 100, wt = abs(avg_log2FC))
+n.vargenes <- c()
+for(gene in top.var){
+	if(gene %in% cmp.top100markers.res1.5$gene){
+		n.vargenes <- c(n.vargenes, gene)
+	}
+}
+print(length(n.vargenes))
+top.var[!(top.var %in% n.vargenes)]
+```
+
+
+Lets try to export these, with genes on rows and clusters on columns, and xpression value in data table
+```{r}
+var.df <- cmp.top100markers.res1.5[cmp.top100markers.res1.5$gene %in% n.vargenes,]
+var.df <- subset.data.frame(var.df, select = c("gene", "cluster", "avg_log2FC"))
+var.df <- reshape2::dcast(var.df, gene~cluster)
+xlsx::write.xlsx(var.df, file = paste0(projectName, "_dim", ndims, "_candididateBiomarkGenes.xlsx"), sheetName = "res1.5", append = TRUE, row.names = FALSE)
+
+```
+For each resolution, what percentage of cells in each cluster are enriched for one of our clust.IDs?
+
+
+Test: what percentage of each new clusterID matches one of the older clusters?
+```{r}
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		new.clusters <- sort(as.numeric(levels(cmp.object@meta.data[[meta.col]])))
+		enrich.df <- data.frame(matrix(ncol = 4, nrow = length(new.clusters)))
+		colnames(enrich.df) <- c(3, 17, 10, 11)
+		rownames(enrich.df) <- new.clusters
+		meta.df <- cmp.object@meta.data
+		for(row.id in rownames(enrich.df)){
+			tot.clus <- nrow(meta.df[meta.df[[meta.col]] == row.id,])
+			for(col.id in colnames(enrich.df)){
+				num.x <- nrow(meta.df[(meta.df[[meta.col]] == row.id) & (meta.df$clust.ID == col.id),])
+				pct.x <- as.integer(num.x / tot.clus *100)
+				# print(pct.x)
+				enrich.df[row.id, col.id] <- pct.x
+			}
+		}
+		colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0("oldcluster", x))
+		rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0("newcluster", x))
+		xlsx::write.xlsx(enrich.df, file = paste0("PctOfNewClustersOverlappingOldClusters_", projectName, "_dim", ndims, ".xlsx"), sheetName = paste0(gsub("RNA_snn_", "", meta.col)), append = TRUE)
+		print(enrich.df)
+	}
+}
+
+```
+Absolutely terrible overlap, no enrichment of any of these across the new clustering algorithm. Maybe should try 95% variation covered
+
+## Find old cells on UMAP
+
+time for the super scarey moment to see if the cells from seuratv1 still cluster together on in seurat v4
+
+```{r fig.width = 4}
+DimPlot(cmp.object,
+				reduction = "umap",
+				group.by = "clust.ID", 
+				# split.by = "orig.ident",
+				cols = c("gray", "orange", "blue", "red", "green"),)
+```
+```{r fig.width = 4}
+DimPlot(cmp.object,
+				reduction = "umap",
+				group.by = "orig.ident", 
+				split.by = "clust.ID",
+				cols = c("gray", "orange", "blue", "red", "green"),)
+```
+
+
+
+# Total var 80%
+## Neighborhood and umap
+set total.var <- 80%
+```{r}
+tot.var <- percent.variance(cmp.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims <- length(which(cumsum(tot.var) <= 80))
+
+cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
+cmp.object <- FindClusters(cmp.object, resolution = 0.5)
+cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
+
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	cmp.object <- FindClusters(cmp.object, resolution = x)
+saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 }
 ```
 
@@ -467,7 +662,6 @@ cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
 cmp.object <- FindClusters(cmp.object, resolution = 0.5)
 cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
 
-saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 Plot UMAP
 
@@ -475,6 +669,7 @@ Plot UMAP
 for(x in c(0.5, 1, 1.5, 2, 2.5)){
 	cmp.object <- FindClusters(cmp.object, resolution = x)
 }
+saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 
 ```{r}
