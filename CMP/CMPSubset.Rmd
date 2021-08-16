@@ -200,53 +200,7 @@ length(top100.var)
 
 
 
-### Color palette
-```{r}
-color.palette <- c(
-	"coral",
-	"chartreuse4",
-	"goldenrod1",
-	"cadetblue1",
-	"burlywood",
-	"brown",
-	"brown1",
-	"blue",
-	"blue4",
-	"azure3",
-	"aquamarine",
-	"antiquewhite",
-	"cadetblue",
-	"gold3",
-	"black",
-	"darkgreen",
-	"deeppink",
-	"darkviolet",
-	"darkturquoise",
-	"darkslategray",
-	"darksalmon",
-	"darkorchid1",
-	"darkolivegreen2",
-	"forestgreen",
-	"dodgerblue",
-	"green",
-	"lightpink",
-	"lightcoral",
-	"khaki1",
-	"maroon",
-	"peru",
-	"lightseagreen",
-	"lightsalmon",
-	"plum",
-	"moccasin",
-	"tan",
-	"tan1", 
-	"red", 
-	"purple",
-	"khaki4",
-	"black", 
-	"plum4"
-)
-```
+
 
 # Total var 90%
 ## Neighborhood and umap
@@ -259,7 +213,6 @@ cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
 cmp.object <- FindClusters(cmp.object, resolution = 0.5)
 cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
 
-saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 Plot UMAP
 
@@ -267,6 +220,7 @@ Plot UMAP
 for(x in c(0.5, 1, 1.5, 2, 2.5)){
 	cmp.object <- FindClusters(cmp.object, resolution = x)
 }
+saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
 
 ```{r}
@@ -286,10 +240,16 @@ for (meta.col in colnames(cmp.object@meta.data)){
 ### Clustree
 what's the max resolution we can achieve while keepign clusters stable?
 ```{r fig.width = 10, fig.height = 5}
-clustree(cmp.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability", exprs = "scale.data") + 
-    scale_color_continuous(low = 'red3', high = 'white')
+plot.title <- paste0(projectName, "_clustree_ndim", max(cmp.object@commands$RunUMAP.RNA.pca$dims))
+my.clustree <- clustree(cmp.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability", exprs = "scale.data") + 
+	scale_color_continuous(low = 'red3', high = 'white') + 
+	ggtitle(plot.title)
+png(filename = paste0(plot.title, ".png"), height = 800, width = 1600)
+plot(my.clustree)
+dev.off()
+
 ```
-I think I'm liking res.1.0 from this
+I think I'm liking res.1.0 from this. Although how much does this change if I use fewer PCs...
 
 
 
@@ -369,7 +329,134 @@ DimPlot(cmp.object,
 ```
 
 
+# Total var 85%
+## Neighborhood and umap
+set total.var <- 85%
+```{r}
+tot.var <- percent.variance(cmp.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims <- length(which(cumsum(tot.var) <= 85))
+
+cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
+cmp.object <- FindClusters(cmp.object, resolution = 0.5)
+cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
+
+saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	cmp.object <- FindClusters(cmp.object, resolution = x)
+}
+```
+
+```{r}
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		myplot <- DimPlot(cmp.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = color.palette
+											) + 
+			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
+		plot(myplot)
+	}
+}
+```
+
+### Clustree
+what's the max resolution we can achieve while keepign clusters stable?
+```{r fig.width = 10, fig.height = 5}
+plot.title <- paste0(projectName, "_clustree_ndim", max(cmp.object@commands$RunUMAP.RNA.pca$dims))
+my.clustree <- clustree(cmp.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability", exprs = "scale.data") + 
+	scale_color_continuous(low = 'red3', high = 'white') + 
+	ggtitle(plot.title)
+png(filename = paste0(plot.title, ".png"), height = 800, width = 1600)
+plot(my.clustree)
+dev.off()
+```
+
+
+
+for each resolution, number/percentage of cells in each cluster?
+
+```{r}
+tot.cells <- nrow(cmp.object@meta.data)
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		new.clusters <- sort(as.numeric(levels(cmp.object@meta.data[[meta.col]])))
+		stats.df <- data.frame(matrix(ncol = 2, nrow = length(new.clusters)))
+		colnames(stats.df) <- c("num_cells", "pct_pop")
+		rownames(stats.df) <- new.clusters
+		meta.df <- cmp.object@meta.data
+		for(row.id in rownames(stats.df)){
+				num.x <- nrow(meta.df[meta.df[meta.col] == row.id,])
+				pct.x <- as.integer(num.x / tot.cells *100)
+				# print(pct.x)
+				stats.df[row.id, "num_cells"] <- num.x
+				stats.df[row.id, "pct_pop"] <- pct.x
+		}
+		print(stats.df)
+	}
+}
+```
+
+
+
+For each resolution, what percentage of cells in each cluster are enriched for one of our clust.IDs?
+
+
+Test: what percentage of each new clusterID matches one of the older clusters?
+```{r}
+for (meta.col in colnames(cmp.object@meta.data)){
+	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		new.clusters <- sort(as.numeric(levels(cmp.object@meta.data[[meta.col]])))
+		enrich.df <- data.frame(matrix(ncol = 4, nrow = length(new.clusters)))
+		colnames(enrich.df) <- c(3, 17, 10, 11)
+		rownames(enrich.df) <- new.clusters
+		meta.df <- cmp.object@meta.data
+		for(row.id in rownames(enrich.df)){
+			tot.clus <- nrow(meta.df[meta.df[[meta.col]] == row.id,])
+			for(col.id in colnames(enrich.df)){
+				num.x <- nrow(meta.df[(meta.df[[meta.col]] == row.id) & (meta.df$clust.ID == col.id),])
+				pct.x <- as.integer(num.x / tot.clus *100)
+				# print(pct.x)
+				enrich.df[row.id, col.id] <- pct.x
+			}
+		}
+		colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0("oldcluster", x))
+		rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0("newcluster", x))
+		xlsx::write.xlsx(enrich.df, file = paste0("PctOfNewClustersOverlappingOldClusters_", projectName, "_dim", ndims, ".xlsx"), sheetName = paste0(gsub("RNA_snn_", "", meta.col)), append = TRUE)
+		print(enrich.df)
+	}
+}
+
+```
+Absolutely terrible overlap, no enrichment of any of these across the new clustering algorithm. Maybe should try 95% variation covered
+
+## Find old cells on UMAP
+
+time for the super scarey moment to see if the cells from seuratv1 still cluster together on in seurat v4
+
+```{r fig.width = 4}
+DimPlot(cmp.object,
+				reduction = "umap",
+				group.by = "clust.ID", 
+				# split.by = "orig.ident",
+				cols = c("gray", "orange", "blue", "red", "green"),)
+```
+```{r fig.width = 4}
+DimPlot(cmp.object,
+				reduction = "umap",
+				group.by = "orig.ident", 
+				split.by = "clust.ID",
+				cols = c("gray", "orange", "blue", "red", "green"),)
+```
+
+
+
 # Total var 95%
+
 ## Neighborhood and umap
 set total.var <- 95%
 ```{r}
@@ -390,7 +477,20 @@ for(x in c(0.5, 1, 1.5, 2, 2.5)){
 }
 ```
 
+```{r}
+cmp.object <- readRDS("CMP_dim41.RDS")
+```
 
+
+```{r fig.width = 10, fig.height = 5}
+plot.title <- paste0(projectName, "_clustree_ndim", max(cmp.object@commands$RunUMAP.RNA.pca$dims))
+my.clustree <- clustree(cmp.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability", exprs = "scale.data") + 
+	scale_color_continuous(low = 'red3', high = 'white') + 
+	ggtitle(plot.title)
+png(filename = paste0(plot.title, ".png"), height = 800, width = 1600)
+plot(my.clustree)
+dev.off()
+```
 
 For each resolution, what percentage of cells in each cluster are enriched for one of our clust.IDs?
 
