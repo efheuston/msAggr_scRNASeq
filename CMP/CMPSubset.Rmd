@@ -329,11 +329,12 @@ set total.var <- 85%
 ```{r}
 tot.var <- percent.variance(cmp.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 ndims <- length(which(cumsum(tot.var) <= 85))
+```
 
+```{r}
 cmp.object <- FindNeighbors(cmp.object, dims = 1:ndims)
 cmp.object <- FindClusters(cmp.object, resolution = 0.5)
 cmp.object <- RunUMAP(cmp.object, dims = 1: ndims)
-
 ```
 Plot UMAP
 
@@ -347,13 +348,24 @@ saveRDS(cmp.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```{r}
 for (meta.col in colnames(cmp.object@meta.data)){
 	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+		plot.title <- paste0(projectName, "dim", ndims, "res", gsub("RNA_snn_res", "", meta.col))
 		myplot <- DimPlot(cmp.object, 
 											group.by = meta.col,
 											reduction = "umap", 
 											cols = color.palette
 											) + 
-			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
+			ggtitle(plot.title)
 		plot(myplot)
+		png(filename = paste0(plot.title, ".png"), height = 800, width = 800)
+		plot(DimPlot(cmp.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											cols = color.palette, 
+											pt.size = 1.5
+											) + 
+			ggtitle(plot.title)
+			)
+		dev.off()
 	}
 }
 ```
@@ -446,6 +458,92 @@ xlsx::write.xlsx(var.df, file = paste0(projectName, "_dim", ndims, "_candididate
 
 ```
 
+Here's the list of genes, plus some controls
+```{r}
+res1.biomark.genes <- c("Aif1",
+"Aqp1",
+"Birc5",
+"Ccl3",
+"Ccr2",
+"Cd74",
+"Cdc20",
+"Cenpf",
+"Cst3",
+"Ctsh",
+"Dntt",
+"Elane",
+"Ermap",
+"F13a1",
+"Fcer1g",
+"Gm15915",
+"Gm17590",
+"H2-Aa",
+"H2-Eb1",
+"H2afx",
+"H2afy",
+"Hist1h2ac",
+"Hmgb2",
+"Hp",
+"Ighm",
+"Irf8",
+"Lgals3",
+"Lmo4",
+"Ms4a2",
+"Mt1",
+"Plac8",
+"Prtn3",
+"Rap1b",
+"Rgs1",
+"Vwf",
+"Wfdc17",
+"Csrp3",
+"Hist1h2ae",
+"Ifitm1",
+"Lgals1",
+"Tmsb4x",
+"Arl6ip1",
+"Car2",
+"Ccl9",
+"Ccnb2",
+"Cd9",
+"Cenpa",
+"Cpa3",
+"Fos",
+"Hist1h2ap",
+"Ly6c2",
+"Mpo",
+"Pclaf",
+"Slpi",
+"Top2a",
+"Ube2c",
+"Ly86",
+"Hist1h2bc",
+"Pf4",
+"Apoe",
+"Ctsg",
+"Car1",
+"Hmmr", 
+"Gapdh", 
+"B2m", 
+"Actb", 
+"Hprt1",
+"Gusb")
+```
+
+make vln plots per cluster
+```{r}
+for(gene in res1.biomark.genes){
+	plot.title <- paste0(projectName, "dim", ndims, "res1_", gene)
+	myplot<- VlnPlot(cmp.object, features = gene, pt.size = 0.01) + ggtitle(plot.title)
+	png(filename = paste0(plot.title, ".png"), height = 800, width = 1600)
+	plot(myplot)
+	dev.off()
+	
+}
+```
+
+
+## Res 1.5
 
 repeat for top.var	genes in cmp.top100markers.res1.5
 ```{r}
@@ -522,6 +620,12 @@ DimPlot(cmp.object,
 				cols = c("gray", "orange", "blue", "red", "green"),)
 ```
 
+### Gene expression of old clustrs on new map
+Let's see if we can get some gene expression profiles on these...
+```{r, fig.height=10, fig.width=18}
+gene.list <- c("Gata1", "Gata2", "Pf4", "Dntt", "Mpo", "Meis1", "Irf8", "Elane", "Fli1", "Zfpm1")
+VlnPlot(cmp.object, features = gene.list, group.by = "clust.ID", pt.size = 0.01, cols = c("gray", "orange", "blue", "red", "green"))
+```
 
 
 # Total var 80%
