@@ -5,6 +5,9 @@ output: html_notebook
 
 # Updates
 
+## Update 2021.08.19
+Pursuing Dim25 (85% of variance explained) res1 and res1.5 for biomark targets
+
 ## Update 2021.08.11
 Most thorough way to readdress differences between original and current analyses is to jsut redo the biomark. To that end, will restart analysis of *just* CMPm2, excluding other datasets (i.e., LSK, MEP, GMP). Will also keep 
 
@@ -15,6 +18,7 @@ Creating new pipeline using seurat v4.0.2 available 2021.06.08
 
 Load libraries required for Seuratv4
 
+## Load libraries
 ```{r setup}
 library(dplyr)
 library(Seurat)
@@ -23,13 +27,13 @@ library(ggplot2)
 library(clustree)
 ```
 
-# Set global variables
+## Set global variables
 ```{r}
 projectName <- "CMP"
 jackstraw.dim <- 40
 ```
 
-store session info
+## Store session info
 ```{r}
 sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
 sink(sessionInfo.filename)
@@ -37,7 +41,7 @@ sessionInfo()
 sink()
 ```
 
-
+## Load local scripts
 ```{r}
 source("../RFunctions/read_10XGenomics_data.R")
 source("../RFunctions/PercentVariance.R")
@@ -45,7 +49,7 @@ source("../RFunctions/Mouse2Human_idconversion.R")
 source ("../RFunctions/ColorPalette.R")
 ```
 
-
+# Read CMPm2
 ```{r warning=FALSE}
 setwd("../../cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
 data_file.list <- read_10XGenomics_data(sample.list = "CMPm2")
@@ -372,11 +376,12 @@ for (meta.col in colnames(cmp.object@meta.data)){
 
 ### Clustree
 what's the max resolution we can achieve while keepign clusters stable?
-```{r fig.width = 10, fig.height = 5}
+```{r fig.width = 15, fig.height = 5}
 plot.title <- paste0(projectName, "_clustree_ndim", max(cmp.object@commands$RunUMAP.RNA.pca$dims))
 my.clustree <- clustree(cmp.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability", exprs = "scale.data") + 
 	scale_color_continuous(low = 'red3', high = 'white') + 
 	ggtitle(plot.title)
+plot(my.clustree)
 png(filename = paste0(plot.title, ".png"), height = 800, width = 1600)
 plot(my.clustree)
 dev.off()
@@ -420,6 +425,9 @@ length(cmp.object@assays$RNA@var.features)
 set ident at res = 1 and get markers
 ```{r}
 Idents(cmp.object) <- "RNA_snn_res.1"
+```
+
+```{r}
 cmp.allmarkers.res1 <- FindAllMarkers(cmp.object)
 cmp.top100markers.res1 <- cmp.allmarkers.res1 %>% group_by(cluster) %>% top_n(n = 100, wt = abs(avg_log2FC))
 ```
@@ -427,10 +435,19 @@ cmp.top100markers.res1 <- cmp.allmarkers.res1 %>% group_by(cluster) %>% top_n(n 
 ```{r}
 cmp.top100markers.res1 <- cmp.allmarkers.res1 %>% group_by(cluster) %>% top_n(n = 100, wt = abs(avg_log2FC))
 cmp.top100markers.res1 <- cmp.top100markers.res1[cmp.top100markers.res1$p_val_adj <= 0.05, ]
-for(cluster in unique(cmp.top100markers.res1$cluster)){
+for(cluster in sort(as.numeric(unique(cmp.top100markers.res1$cluster)))){
 	num.hits <- nrow(cmp.top100markers.res1[cmp.top100markers.res1$cluster == cluster, ])
 	print(paste("cluster", cluster, "has", num.hits, "genes"))
-}
+		cluster.markers <- FindMarkers(cmp.object, ident.1 = cluster)
+		try(
+			xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
+											 file = paste0(projectName, "_dim", ndims, "_FindMarkersTop100.xlsx"), 
+											 sheetName = paste0("clst", cluster), 
+											 col.names = TRUE, 
+											 row.names = TRUE, 
+											 append = TRUE)
+		)	
+	}
 ```
 
 
@@ -461,73 +478,82 @@ xlsx::write.xlsx(var.df, file = paste0(projectName, "_dim", ndims, "_candididate
 Here's the list of genes, plus some controls
 ```{r}
 res1.biomark.genes <- c("Aif1",
-"Aqp1",
-"Birc5",
-"Ccl3",
-"Ccr2",
-"Cd74",
-"Cdc20",
-"Cenpf",
-"Cst3",
-"Ctsh",
-"Dntt",
-"Elane",
-"Ermap",
-"F13a1",
-"Fcer1g",
-"Gm15915",
-"Gm17590",
-"H2-Aa",
-"H2-Eb1",
-"H2afx",
-"H2afy",
-"Hist1h2ac",
-"Hmgb2",
-"Hp",
-"Ighm",
-"Irf8",
-"Lgals3",
-"Lmo4",
-"Ms4a2",
-"Mt1",
-"Plac8",
-"Prtn3",
-"Rap1b",
-"Rgs1",
-"Vwf",
-"Wfdc17",
-"Csrp3",
-"Hist1h2ae",
-"Ifitm1",
-"Lgals1",
-"Tmsb4x",
-"Arl6ip1",
-"Car2",
-"Ccl9",
-"Ccnb2",
-"Cd9",
-"Cenpa",
-"Cpa3",
-"Fos",
-"Hist1h2ap",
-"Ly6c2",
-"Mpo",
-"Pclaf",
-"Slpi",
-"Top2a",
-"Ube2c",
-"Ly86",
-"Hist1h2bc",
-"Pf4",
-"Apoe",
-"Ctsg",
-"Car1",
-"Hmmr", 
-"Gapdh", 
-"B2m", 
-"Actb", 
-"Hprt1",
-"Gusb")
+												"Aqp1",
+												"Birc5",
+												"Ccl3",
+												"Ccr2",
+												"Cd74",
+												"Cdc20",
+												"Cenpf",
+												"Cst3",
+												"Ctsh",
+												"Dntt",
+												"Elane",
+												"Ermap",
+												"F13a1",
+												"Fcer1g",
+												"Gm15915",
+												"Gm17590",
+												"H2-Aa",
+												"H2-Eb1",
+												"H2afx",
+												"H2afy",
+												"Hist1h2ac",
+												"Hmgb2",
+												"Hp",
+												"Ighm",
+												"Irf8",
+												"Lgals3",
+												"Lmo4",
+												"Ms4a2",
+												"Mt1",
+												"Plac8",
+												"Prtn3",
+												"Rap1b",
+												"Rgs1",
+												"Vwf",
+												"Wfdc17",
+												"Csrp3",
+												"Hist1h2ae",
+												"Ifitm1",
+												"Lgals1",
+												"Tmsb4x",
+												"Arl6ip1",
+												"Car2",
+												"Ccl9",
+												"Ccnb2",
+												"Cd9",
+												"Cenpa",
+												"Cpa3",
+												"Fos",
+												"Hist1h2ap",
+												"Ly6c2",
+												"Mpo",
+												"Pclaf",
+												"Slpi",
+												"Top2a",
+												"Ube2c",
+												"Ly86",
+												"Hist1h2bc",
+												"Pf4",
+												"Apoe",
+												"Ctsg",
+												"Car1",
+												"Hmmr")
+hkgenes <- c("Gapdh", "B2m", "Hprt", "Pgk1", "Rplp2", "Pgk1", "Ubc", "Ywhaz", "Ppia", "Pum1", "Psmc4", "Elf1", "Mrpl19")
+surface.markers<- c("Cd34", 
+										"Kit",
+										"Cd48", 
+										"Ly6a",
+										"Ly6e",
+										"Cd9",
+										"Itga2b",
+										"Ly86",
+										"Itga6",
+										"Cd55",
+										"Slamf1",
+										"Flt3"
+										)
 ```
 
 make vln plots per cluster
@@ -535,11 +561,32 @@ make vln plots per cluster
 for(gene in res1.biomark.genes){
 	plot.title <- paste0(projectName, "dim", ndims, "res1_", gene)
 	myplot<- VlnPlot(cmp.object, features = gene, pt.size = 0.01) + ggtitle(plot.title)
-	png(filename = paste0(plot.title, ".png"), height = 800, width = 1600)
+	png(filename = paste0("VlnPlots/", plot.title, ".png"), height = 800, width = 1600)
 	plot(myplot)
 	dev.off()
-	
 }
+for(gene in hkgenes){
+	plot.title <- paste0(projectName, "dim", ndims, "res1_", gene)
+	myplot<- VlnPlot(cmp.object, features = gene, pt.size = 0.01) + ggtitle(plot.title)
+	png(filename = paste0("VlnPlots/", plot.title, "-hkgene.png"), height = 800, width = 1600)
+	plot(myplot)
+	dev.off()
+}
+for(gene in surface.markers){
+	plot.title <- paste0(projectName, "dim", ndims, "res1_", gene)
+	myplot<- VlnPlot(cmp.object, features = gene, pt.size = 0.01) + ggtitle(plot.title)
+	png(filename = paste0("VlnPlots/", plot.title, "-surfMkr.png"), height = 800, width = 1600)
+	plot(myplot)
+	dev.off()
+}
+```
+
+Plot candidate control genes
+```{r fig.height=20, fig.width=10}
+# VlnPlot(cmp.object, features = hkgenes, pt.size = 0.001, same.y.lims = FALSE, ncol = 2)
+png(filename = paste0(projectName, "dim", ndims, "res1_TaqmanControls.png"), height = 1600, width = 2400)
+VlnPlot(cmp.object, features = hkgenes, pt.size = 0.01, same.y.lims = FALSE, ncol = 5)
+dev.off()
 ```
 
 
