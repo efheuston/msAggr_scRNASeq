@@ -237,18 +237,9 @@ pre code {
 <h2>Load libraries</h2>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubGlicmFyeShkcGx5cilcbmBgYCJ9 -->
-<pre class="r"><code>library(dplyr)</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiV2FybmluZyBtZXNzYWdlczpcbjE6IEluIGlmIChjaGFyVG9SYXcoeCkgPCAyMCkgcGFzdGUoXCJcXFxcdVwiLCB0b3VwcGVyKGZvcm1hdChhcy5oZXhtb2RlKGFzLmludGVnZXIoY2hhclRvUmF3KHgpKSksICA6XG4gIHRoZSBjb25kaXRpb24gaGFzIGxlbmd0aCA+IDEgYW5kIG9ubHkgdGhlIGZpcnN0IGVsZW1lbnQgd2lsbCBiZSB1c2VkXG4yOiBJbiBpZiAoY2hhclRvUmF3KHgpIDwgMjApIHBhc3RlKFwiXFxcXHVcIiwgdG91cHBlcihmb3JtYXQoYXMuaGV4bW9kZShhcy5pbnRlZ2VyKGNoYXJUb1Jhdyh4KSkpLCAgOlxuICB0aGUgY29uZGl0aW9uIGhhcyBsZW5ndGggPiAxIGFuZCBvbmx5IHRoZSBmaXJzdCBlbGVtZW50IHdpbGwgYmUgdXNlZFxuIn0= -->
-<pre><code>Warning messages:
-1: In if (charToRaw(x) &lt; 20) paste(&quot;\\u&quot;, toupper(format(as.hexmode(as.integer(charToRaw(x))),  :
-  the condition has length &gt; 1 and only the first element will be used
-2: In if (charToRaw(x) &lt; 20) paste(&quot;\\u&quot;, toupper(format(as.hexmode(as.integer(charToRaw(x))),  :
-  the condition has length &gt; 1 and only the first element will be used</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubGlicmFyeShTZXVyYXQpXG5saWJyYXJ5KHBhdGNod29yaylcbmxpYnJhcnkoZ2dwbG90MilcbmxpYnJhcnkoU2luZ2xlQ2VsbEV4cGVyaW1lbnQpXG5saWJyYXJ5KE1hdHJpeC51dGlscylcbmxpYnJhcnkoREVTZXEyKVxubGlicmFyeShlZGdlUilcbmxpYnJhcnkoY3NhdylcbmxpYnJhcnkodHhpbXBvcnQpXG5gYGAifQ== -->
-<pre class="r"><code>library(Seurat)
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxubGlicmFyeShkcGx5cilcbmxpYnJhcnkoU2V1cmF0KVxubGlicmFyeShwYXRjaHdvcmspXG5saWJyYXJ5KGdncGxvdDIpXG5saWJyYXJ5KFNpbmdsZUNlbGxFeHBlcmltZW50KVxubGlicmFyeShNYXRyaXgudXRpbHMpXG5saWJyYXJ5KERFU2VxMilcbmxpYnJhcnkoZWRnZVIpXG5saWJyYXJ5KGNzYXcpXG5saWJyYXJ5KHR4aW1wb3J0KVxuYGBgIn0= -->
+<pre class="r"><code>library(dplyr)
+library(Seurat)
 library(patchwork)
 library(ggplot2)
 library(SingleCellExperiment)
@@ -276,37 +267,31 @@ comparison_pop &lt;- &quot;CMP&quot;</code></pre>
 <h2>Store session info</h2>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuYGBgclxuc2Vzc2lvbkluZm8uZmlsZW5hbWUgPC0gcGFzdGUwKHByb2plY3ROYW1lLCBcXF9zZXNzaW9uSW5mby50eHRcXClcbnNpbmsoc2Vzc2lvbkluZm8uZmlsZW5hbWUpXG5zZXNzaW9uSW5mbygpXG5zaW5rKClcbmBgYFxuYGBgIn0= -->
-<pre class="r"><code>```r
-sessionInfo.filename &lt;- paste0(projectName, \_sessionInfo.txt\)
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc2Vzc2lvbkluZm8uZmlsZW5hbWUgPC0gcGFzdGUwKHByb2plY3ROYW1lLCBcIl9zZXNzaW9uSW5mby50eHRcIilcbnNpbmsoc2Vzc2lvbkluZm8uZmlsZW5hbWUpXG5zZXNzaW9uSW5mbygpXG5zaW5rKClcbmBgYCJ9 -->
+<pre class="r"><code>sessionInfo.filename &lt;- paste0(projectName, &quot;_sessionInfo.txt&quot;)
 sink(sessionInfo.filename)
 sessionInfo()
 sink()</code></pre>
-<pre><code>
-&lt;!-- rnb-source-end --&gt;
-
-&lt;!-- rnb-chunk-end --&gt;
-
-
-&lt;!-- rnb-text-begin --&gt;
-
-
-## Load local scripts
-
-&lt;!-- rnb-text-end --&gt;
-
-
-&lt;!-- rnb-chunk-begin --&gt;
-
-
-&lt;!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBzb3VyY2UoXCIuLi9SRnVuY3Rpb25zL3JlYWRfMTBYR2Vub21pY3NfZGF0YS5SXCIpXG4jIHNvdXJjZShcIi4uL1JGdW5jdGlvbnMvUGVyY2VudFZhcmlhbmNlLlJcIilcbnNvdXJjZShcIi4uL1JGdW5jdGlvbnMvTW91c2UySHVtYW5faWRjb252ZXJzaW9uLlJcIilcbnNvdXJjZSAoXCIuLi9SRnVuY3Rpb25zL0NvbG9yUGFsZXR0ZS5SXCIpXG5gYGAifQ== --&gt;
-
-```r
-# source(&quot;../RFunctions/read_10XGenomics_data.R&quot;)
+<!-- rnb-source-end -->
+<!-- rnb-chunk-end -->
+<!-- rnb-text-begin -->
+</div>
+<div id="load-local-scripts" class="section level2">
+<h2>Load local scripts</h2>
+<!-- rnb-text-end -->
+<!-- rnb-chunk-begin -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuIyBzb3VyY2UoXCIuLi9SRnVuY3Rpb25zL3JlYWRfMTBYR2Vub21pY3NfZGF0YS5SXCIpXG4jIHNvdXJjZShcIi4uL1JGdW5jdGlvbnMvUGVyY2VudFZhcmlhbmNlLlJcIilcbnNvdXJjZShcIi4uL1JGdW5jdGlvbnMvTW91c2UySHVtYW5faWRjb252ZXJzaW9uLlJcIilcbnNvdXJjZSAoXCIuLi9SRnVuY3Rpb25zL0NvbG9yUGFsZXR0ZS5SXCIpXG5gYGAifQ== -->
+<pre class="r"><code># source(&quot;../RFunctions/read_10XGenomics_data.R&quot;)
 # source(&quot;../RFunctions/PercentVariance.R&quot;)
 source(&quot;../RFunctions/Mouse2Human_idconversion.R&quot;)
 source (&quot;../RFunctions/ColorPalette.R&quot;)</code></pre>
 <!-- rnb-source-end -->
+<!-- rnb-output-begin eyJkYXRhIjoiV2FybmluZyBpbiBmaWxlKGZpbGVuYW1lLCBcInJcIiwgZW5jb2RpbmcgPSBlbmNvZGluZykgOlxuICBjYW5ub3Qgb3BlbiBmaWxlICcuLi9SRnVuY3Rpb25zL0NvbG9yUGFsZXR0ZS5SJzogTm8gc3VjaCBmaWxlIG9yIGRpcmVjdG9yeVxuRXJyb3IgaW4gZmlsZShmaWxlbmFtZSwgXCJyXCIsIGVuY29kaW5nID0gZW5jb2RpbmcpIDogXG4gIGNhbm5vdCBvcGVuIHRoZSBjb25uZWN0aW9uXG4ifQ== -->
+<pre><code>Warning in file(filename, &quot;r&quot;, encoding = encoding) :
+  cannot open file &#39;../RFunctions/ColorPalette.R&#39;: No such file or directory
+Error in file(filename, &quot;r&quot;, encoding = encoding) : 
+  cannot open the connection</code></pre>
+<!-- rnb-output-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
 </div>
