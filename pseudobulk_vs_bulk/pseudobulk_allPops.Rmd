@@ -1,0 +1,387 @@
+---
+title: "pseudobulk_CMP"
+output: html_notebook
+---
+
+# Purpose
+Determine _ranked spearman correlation_ between single cell RNASeq (scRNASeq) and bulk RNASeq (bRNASeq)
+
+## Method
+1. Perform pseudo-bulk analysis from scRNASeq of population (i.e., CMP)
+2. Download bRNASeq of same population (has 2 replicates)
+3. Ranked spearman correlation between bRNASeq replicates
+4. Ranked spearman correlation between each bRNASeq replicate and pseudobulk scRNASeq sample
+5. Ranked spearman correlation between combined bRNASeq replicates and pseudobulk scRNASeq sample
+
+## Update
+### 2021.09.13
+Finally got a method working for CMP vs. TotalSeq CMP (see pseudobulk_CMP.RMD). Will now clean up notebook and comparisons for both TotalSeq and ScriptSeq, and for all LSK, CMP, MEP, and GMP populations.
+
+
+# Notebook setup
+
+Creating new pipeline using seurat v4.0.2 available 2021.06.08
+
+Load libraries required for Seuratv4
+
+## Load libraries
+```{r setup}
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(SingleCellExperiment)
+library(Matrix.utils)
+library(DESeq2)
+library(edgeR)
+library(csaw)
+library(tximport)
+```
+
+## Set global variables
+```{r}
+projectName <- "pseudobulk_allPops"
+comparison_pop <- "CMP"
+```
+
+## Store session info
+```{r}
+sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
+sink(sessionInfo.filename)
+sessionInfo()
+sink()
+```
+
+## Load local scripts
+```{r}
+# source("../RFunctions/read_10XGenomics_data.R")
+# source("../RFunctions/PercentVariance.R")
+source("../RFunctions/Mouse2Human_idconversion.R")
+source ("../RFunctions/ColorPalette.R")
+```
+
+# Load scRNASeq object
+
+## Dim 25
+Using CMP.rds object of dim=25, describing 85% of variation
+```{r}
+# CMP seurat object generated in "CMPSubset.Rmd"
+seurat.object <- readRDS("CMP_dim25.RDS")
+```
+```{r fig.height=5, fig.width=15}
+p <- FeaturePlot(seurat.object, features = c("Fli1", "Klf1"), blend = TRUE, pt.size = 1, combine = TRUE, keep.scale = "all")
+plot(p)
+png(filename = "CMP_Fli1Klf1Ratio.png", width = 2400, height = 400)
+plot(p)
+dev.off()
+```
+
+```{r fig.height=5, fig.width=15}
+p <- FeaturePlot(seurat.object, features = c("Gata2", "Gata1"), blend = TRUE, pt.size = 1, combine = TRUE, keep.scale = "all")
+plot(p)
+png(filename = "CMP_Gata2Gata1Ratio.png", width = 2400, height = 400)
+plot(p)
+dev.off()
+```
+
+
+## Calculate pseudobulk gene expression
+
+__ Based on tutorial @ https://hbctraining.github.io/scRNA-seq/lessons/pseudobulk_DESeq2_scrnaseq.html __
+```{r}
+# Extract raw counts and metadata to create SingleCellExperiment object
+
+counts <- seurat.object@assays$RNA@counts 
+
+metadata <- seurat.object@meta.data
+
+# Set up metadata as desired for aggregation and DE analysis
+metadata$cluster_id <- factor(seurat.object@active.ident)
+
+# Create single cell experiment object
+sce <- SingleCellExperiment(assays = list(counts = counts), 
+                           colData = metadata)
+
+```
+
+Investigate the object
+```{r}
+print(dim(counts(sce)))
+print(dim(colData(sce)))
+print(head(colData(sce)))
+```
+
+Note that QC was performed during Seurat analysis
+
+```{r}
+# sce <- perCellQCMetrics(sce)
+```
+## Aggregate counts
+### Aggregate top-level counts
+
+```{r}
+groups <- colData(sce)[, "orig.ident"]
+aggr.counts <- aggregate.Matrix(t(counts(sce)), groupings = groups, fun = "sum")
+
+dim(aggr.counts)
+```
+
+
+```{r}
+sc.dds <- DESeqDataSetFromMatrix(countData = aggr.counts, colData = metadata, design = ~orig.ident)
+
+```
+
+
+
+
+
+# Load bRNASeq data
+
+
+```{r}
+# import rsem.genes.results files
+
+setwd("../../bRNASeq/")
+file_list <- list.files(pattern = "^CMP", recursive = TRUE, include.dirs = TRUE)
+names(file_list) <- lapply(file_list, function(x) gsub('.genes.results', '', x))
+file_list
+```
+
+```{r}
+mstxi <- tximport(files = paste0("../../bRNASeq/", file_list), type = 'rsem', txIn = FALSE, txOut = FALSE, geneIdCol = 3, )
+colnames(mstxi$counts) <- gsub("^.*/", "", names(file_list))
+```
+
+```{r}
+rna.counts <- merge(mstxi$counts, t(aggr.counts), by = "row.names", all = TRUE)
+rna.counts[is.na(rna.counts)]<-0
+rownames(rna.counts) <- rna.counts$Row.names
+rna.counts <- rna.counts[, 2:ncol(rna.counts)]
+head(rna.counts)
+```
+
+```{r}
+dgelist_groups <- factor(c(unlist(stringr::str_extract_all(gsub("/.*", "", names(file_list)), pattern = "[a-zA-Z]+")), "SingleCell"))
+levels(dgelist_groups)
+```
+
+```{r}
+dgelist <- DGEList(counts = rna.counts, group = dgelist_groups)
+dgelist
+apply(dgelist$counts, 2, sum)
+keep <- rowSums(cpm(dgelist) > 10) >=2
+dgelist <- dgelist[keep,]
+```
+
+
+### Calculate library size
+```{r}
+dgelist$samples$lib.size <- colSums(dgelist$counts)
+dgelist <- calcNormFactors(dgelist)
+```
+
+### Calculate dispersion
+
+designMat
+```{r}
+designMat <- model.matrix(~ 0 + dgelist$samples$group)
+colnames(designMat) <- levels(dgelist$samples$group)
+designMat
+```
+
+estimate GLM dispersion and apply
+```{r}
+dgelist <- estimateGLMCommonDisp(dgelist, designMat)
+dgelist <- estimateGLMTrendedDisp(dgelist, designMat, method = 'bin.spline')
+dgelist <- estimateGLMTagwiseDisp(dgelist, designMat)
+```
+
+```{r}
+fit <- glmQLFit(dgelist, designMat, robust = TRUE)
+plotQLDisp(fit)
+```
+
+```{r}
+qlf <- glmQLFTest(fit, coef = )
+summary(decideTests(qlf))
+```
+
+
+#### rld on  individual samples
+
+```{r}
+rld <- rlog(round(dgelist$counts), blind = TRUE)
+rld <- as.data.frame(rld)
+rld.spear <- cor(rld, method = "spearman")
+rld.melt <- reshape2::melt(rld)
+colnames(rld.melt) <- c("sample", "rld")
+```
+
+```{r}
+rld.spear
+```
+
+
+
+```{r}
+ggplot(data = rld.melt, aes(x = sample, y = rld, fill = sample)) + geom_violin()
+```
+
+
+```{r}
+ggplot(data = rld, aes(x = CMPm2, y = CMP1010)) + geom_point()
+```
+
+
+#### rld on pooled samples
+
+```{r}
+pool.counts <- dgelist$counts
+pool.counts <- as.data.frame(pool.counts)
+pool.counts$ScriptSeq <- (pool.counts$CMP1009 + pool.counts$CMP1010)/2
+pool.counts$TruSeq <- (pool.counts$CMP443 + pool.counts$CMP448)/2
+pool.counts <- subset(pool.counts, select = c(ScriptSeq, TruSeq, CMPm2))
+pool.counts <- as.matrix(pool.counts)
+```
+
+
+```{r}
+pool.rld <- rlog(round((pool.counts)), blind = TRUE)
+pool.rld.spear <- cor(pool.rld, method = "spearman")
+pool.rld.melt <- reshape2::melt(pool.rld)
+colnames(pool.rld.melt) <- c("sample", "rld")
+```
+
+```{r}
+pool.rld.spear
+```
+
+
+
+```{r}
+ggplot(data = pool.rld.melt, aes(x = sample, y = rld, fill = sample)) + geom_violin()
+```
+
+
+```{r}
+ggplot(data = pool.rld.melt, aes(x = CMPm2, y = ScriptSeq)) + geom_point()
+```
+
+
+
+Combine replicates from CPM table	
+
+```{r}
+rna.cpm <- as.data.frame(cpm(dgelist, log = TRUE, normalized.lib.sizes = TRUE))
+rna.cpm$ScriptSeq <- (rna.cpm$CMP1009 + rna.cpm$CMP1010)/2
+rna.cpm$TruSeq <- (rna.cpm$CMP443 + rna.cpm$CMP448)/2
+rna.cpm <- subset(rna.cpm, select = c(ScriptSeq, TruSeq, CMPm2))
+```
+
+plot correlation and scatter grams
+```{r}
+cpm.spear <- cor(rna.cpm, method = "spearman")
+cpm.melt <- reshape2::melt(rld)
+colnames(cpm.melt) <- c("sample", "rld")
+```
+
+```{r}
+cpm.spear
+```
+
+
+
+
+
+
+
+
+## Create DESeq object from single cell data
+```{r}
+sc.dds <- DESeqDataSetFromMatrix(countData = aggr.counts, colData = metadata, design = ~orig.ident)
+```
+
+
+# Single cell/Bulk RNA-Seq concordance tutorial
+Following a new (tutorial) [https://jdblischak.github.io/singlecell-qtl/sc-vs-bulk.html]. 
+
+Calculate cpm from single cell umi matrix
+```{r}
+sc.mtx <- data.frame(rowSums(seurat.object@assays$RNA@counts))
+sc.mtx <- sc.mtx/colSums(sc.mtx)*1000000
+```
+Tutorial states that only quantity directly cmoprable between bulk and scRNA-Seq is relative abundance (cites Pachter 2001). 
+
+read cmp bulk TPM
+```{r}
+# generate table with individual TPMs
+bulk.path <- "../../bRNASeq/TotalSeq/"
+file_list <- list.files(path = bulk.path, pattern = comparison_pop)
+bulk.pop <- read.table(file = paste0(bulk.path, file_list[1]), header = TRUE)[1]
+for(file in file_list){
+	print(file)
+	bulk.pop <- merge(bulk.pop, read.table(file = paste0(bulk.path, file), header = TRUE, sep = "\t")[, c(1,5)], by = "gene_id")
+}
+
+#calculate average tpm
+bulk.pop[comparison_pop] <- rowMeans(x = bulk.pop[, c(2, 3)])
+
+# clean and check df
+bulk.pop <- bulk.pop[, -c(2, 3)]
+head(bulk.pop)
+```
+```{r}
+#calc log_rho's
+bulk.rho <- log((bulk.pop[comparison_pop] + 1), 2) - log(colSums((bulk.pop[comparison_pop])+ 1), 2)
+rownames(bulk.rho) <- bulk.pop$gene_id
+colnames(bulk.rho) <- "bulk"
+sc.rho <- log((sc.mtx + 1), 2) - log(colSums((sc.mtx+1)), 2)
+colnames(sc.rho) <- "sc"
+```
+
+check that all values are numeric
+```{r}
+print(is.numeric(bulk.rho[,1]))
+print(is.numeric(sc.rho[,1]))
+```
+## create concordance df
+### set NA = 0
+```{r}
+concordance.NAasZero <- merge(bulk.rho, sc.rho, by = "row.names", all = TRUE)
+concordance.NAasZero[is.na(concordance.NAasZero)] <- 0
+rownames(concordance.NAasZero) <- concordance.NAasZero$Row.names
+concordance.NAasZero <- concordance.NAasZero[, c(2, 3)]
+```
+#### plot data
+```{r}
+ggplot(data = concordance.NAasZero, aes(x = bulk, y = sc)) + 
+	geom_point()  +
+	ggtitle(paste0("concordance in ", comparison_pop))
+```
+```{r}
+cor(concordance.NAasZero, method = "spearman")
+```
+
+### drop NA
+```{r}
+concordance.df <- merge(bulk.rho, sc.rho, by = "row.names", all = TRUE)
+concordance.df <- na.omit(concordance.df)
+rownames(concordance.df) <- concordance.df$Row.names
+concordance.df <- concordance.df[, c(2, 3)]
+```
+```{r}
+spearman.coeff <- cor(concordance.df, method = "spearman")[1, 2]
+spearman.coeff
+```
+#### plot data
+```{r}
+ggplot(data = concordance.df, aes(x = bulk, y = sc)) + 
+	geom_point()  +
+	ggtitle(paste0("concordance in ", comparison_pop, " spearman coeff = ", round(spearman.coeff, digits = 3)))
+```
+
+
+
+
+
