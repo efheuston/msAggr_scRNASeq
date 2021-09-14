@@ -22,12 +22,15 @@ Following a new [tutorial][https://jdblischak.github.io/singlecell-qtl/sc-vs-bul
 
 # Notebook setup
 
-## Load libraries
 ```{r setup}
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/pseudobulk_vs_bulk/")
+```
+
+## Load libraries
+```{r}
 library(dplyr)
 library(Seurat)
 library(ggplot2)
-knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/pseudobulk_vs_bulk/")
 ```
 
 ## Set global variables
