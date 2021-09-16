@@ -19,12 +19,6 @@ library(patchwork)
 library(ggplot2)
 # library(clustree)
 ```
-store session info
-```{r}
-sink("msAggr_seurat-v1.20210623")
-sessionInfo()
-sink()
-```
 
 # A note about using SCTransform versus `ScaleData`
 https://bioconductor.org/packages/3.10/workflows/vignettes/simpleSingleCell/inst/doc/batch.html#62_for_gene-based_analyses
@@ -55,6 +49,13 @@ projectName <- "msAggr"
 jackstraw.dim <- 40
 ```
 
+## Store session info
+```{r}
+sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
+sink(sessionInfo.filename)
+sessionInfo()
+sink()
+```
 
 
 ```{r}

@@ -2,12 +2,18 @@
 library(dplyr)
 library(Seurat)
 library(ggplot2)
+library(xlsx)
 
 ## Set global variables
 projectName <- "pseudobulk_allPops"
 cell.list <- c("LSKm2", "CMPm2", "CMPm", "MEPm", "GMPm")
 bulk.list <- c("LSK", "CMP", "CFUE", "CFUMK", "ERY", "GMP", "MK", "MEP")
-export.graphs <- TRUE
+bulk.folders <- c("TotalSeq", "ScriptSeq")
+count.progress <- 0
+
+## Set function options
+plot.graphs <- FALSE
+export.graphs <- FALSE
 all.comparisons <- TRUE
 
 ## Store session info
@@ -16,16 +22,18 @@ sink(sessionInfo.filename)
 sessionInfo()
 sink()
 
-## Load local scripts
-source ("../RFunctions/ColorPalette.R")
-
+## Create empty spearman coefficient dataframes
 spearman.scriptseq <- data.frame(matrix(NA, nrow = length(bulk.list), ncol = length(cell.list)))
 rownames(spearman.scriptseq) <- bulk.list
 colnames(spearman.scriptseq) <- cell.list
-head(spearman.scriptseq)
-
 spearman.totalseq <- spearman.scriptseq
 
+if(plot.graphs == FALSE){
+	print("Export graphs set to FALSE")
+}
+if(export.graphs == FALSE){
+	print("Export graphs set to FALSE")
+}
 
 for (cell.pop in cell.list){
 	# Load scRNASeq object
@@ -39,10 +47,8 @@ for (cell.pop in cell.list){
 	}else{
 		bulk.pops <- substr(cell.pop, 1, 3)
 	}
-	print(bulk.pops)	
 	for(comparison.pop in bulk.pops){
 		# Automate through bRNASeq data
-		bulk.folders <- c("TotalSeq", "ScriptSeq")
 		
 		for(sequencing.folder in bulk.folders){
 			bulk.subfolders <- c(paste0("~/Desktop/10XGenomicsData/bRNASeq/", sequencing.folder, "/"))
@@ -87,33 +93,43 @@ for (cell.pop in cell.list){
 				
 				# spearman plot
 				spearman.coeff <- cor(concordance.df, method = "spearman")[1, 2]
+				# spearman.coeff <- round(spearman.coeff, 3)
 				if(sequencing.folder == "TotalSeq"){
-					spearman.totalseq[bulk.list, cell.list] <- spearman.coeff
+					spearman.totalseq[comparison.pop, cell.pop] <- spearman.coeff
 				}
 				if(sequencing.folder == "ScriptSeq"){
-					spearman.scriptseq[bulk.list, cell.list] <- spearman.coeff
+					spearman.scriptseq[comparison.pop, cell.pop] <- spearman.coeff
 				}
 				
 				
+				if(plot.graphs == TRUE){
+					cor.plot <- ggplot(data = concordance.df, aes(x = bulk, y = sc)) +
+						geom_point()  +
+						ggtitle(paste0(cell.pop, "_vs_", comparison.pop, "-", sequencing.folder, ": spearman coeff = ", round(spearman.coeff, digits = 3)))
+					plot(cor.plot)
+				}
 				
-				# cor.plot <- ggplot(data = concordance.df, aes(x = bulk, y = sc)) + 
-				# 	geom_point()  +
-				# 	ggtitle(paste0(cell.pop, "_vs_", comparison.pop, "-", sequencing.folder, ": spearman coeff = ", round(spearman.coeff, digits = 3)))
-				# plot(cor.plot)
-				# 
-				# 
-				# if(export.graphs == TRUE){
-				# 	png(filename = paste0(cell.pop, "_vs_", comparison.pop, "-", sequencing.folder,"-spearmanPlot.png"), height = 480, width = 800)
-				# 	plot(cor.plot)
-				# 	dev.off()
-				# } else{
-				# 	print("Export graphs set to FALSE")
-				# }
+				if(export.graphs == TRUE){
+					png(filename = paste0(cell.pop, "_vs_", comparison.pop, "-", sequencing.folder,"-spearmanPlot.png"), height = 480, width = 800)
+					plot(cor.plot)
+					dev.off()
+				}
 			}
+			count.progress <- count.progress + 1
+			print(count.progress)
 			
 		}
 	}
 }
+
+spearman.scriptseq
+spearman.totalseq
+spearman.df
+
+write.xlsx(round(spearman.scriptseq, 3), file = "pseudobulk_allpops_spearmanCoeff.xlsx", sheetName = "ScriptSeq", col.names = TRUE, row.names = TRUE)
+write.xlsx(round(spearman.totalseq, 3), file = "pseudobulk_allpops_spearmanCoeff.xlsx", sheetName = "TotalSeq", col.names = TRUE, row.names = TRUE, append = TRUE)
+
+
 
 
 
