@@ -30,11 +30,12 @@ projectName <- "CMP"
 jackstraw.dim <- 40
 ```
 
-store session info
-```{r }
-# sink("CMP-v1.20210616.txt")
+
+## Store session info
+```{r}
+sink(paste0(projectName, "_sessionInfo.txt"))
 sessionInfo()
-# sink()
+sink()
 ```
 
 
@@ -748,4 +749,16 @@ So we did the dimensional reduction based on the biomark RNAs, then did our UMAP
 
 
 In the biomark hierarchcial clustering analysis I assayed 167 cells. The smallest cluster I detected had 3 cells, or 1.8% of total, and this is an uncomfortably small number of cells. Based on the UMAP calculations I would therefore expect to find 11 or 12 of the predicted 15 clusters. I found 12, and I don't really like that last one, so 11 or 12. Since I did the hierarchcial clustering yesterday and did this math today, we can say it was independent of these results and therefore totally legit. Yay!!
+
+# Export for Biomark clustering
+
+```{r}
+biomark.genes <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/MergeBiomarkWith10X/geneIDs.txt", header = FALSE)
+biomark.genes <- unlist(biomark.genes)
+```
+```{r}
+seurat.xprsn <- seurat.object@assays$RNA@scale.data
+seurat.xprsn <- seurat.xprsn[row.names(seurat.xprsn) %in% biomark.genes,]
+seurat.xprsn <- merge(seurat.xprsn, seurat.object@meta.data$RNA_snn_res.1, by = rownames(seurat.xprsn))
+```
 

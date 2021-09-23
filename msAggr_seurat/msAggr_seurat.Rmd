@@ -1,6 +1,8 @@
 ---
 title: "msAggr_seurat"
-output: html_notebook
+output: 
+  html_notebook: 
+    fig_height: 6
 ---
 
 Creating new pipeline using seurat v4.0.2 available 2021.06.23  
@@ -9,8 +11,8 @@ Important notes:
 * FILTERING on `percent.mt`, but NOT regressing on `percent.mt`
 * Regressing on `nCounts_RNA` and `nFeature_RNA`
 
-Load libraries required for Seuratv4
-
+# Setup
+## Load libraries required for Seuratv4
 ```{r setup, message=FALSE, warning=FALSE}
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/msAggr_seurat/")
 library(dplyr)
@@ -19,6 +21,14 @@ library(patchwork)
 library(ggplot2)
 library(clustree)
 ```
+## Source functions
+```{r}
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/read_10XGenomics_data.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/PercentVariance.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/Mouse2Human_idconversion.R")
+```
+
 
 # A note about using SCTransform versus `ScaleData`
 https://bioconductor.org/packages/3.10/workflows/vignettes/simpleSingleCell/inst/doc/batch.html#62_for_gene-based_analyses
@@ -55,13 +65,6 @@ sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
 sink(sessionInfo.filename)
 sessionInfo()
 sink()
-```
-
-
-```{r}
-source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/read_10XGenomics_data.R")
-source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/PercentVariance.R")
-source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
 ```
 
 
@@ -108,7 +111,7 @@ seurat.object <- subset(seurat.object,
 												subset = nFeature_RNA >=200 & 
 													nFeature_RNA <= 4000 & 
 													percent.mt <= 5
-												)
+)
 print(paste("new object:", nrow(seurat.object@meta.data), "cells", sep = " "))
 ```
 
@@ -240,7 +243,7 @@ for (meta.col in colnames(seurat.object@meta.data)){
 											group.by = meta.col,
 											reduction = "umap", 
 											cols = color.palette
-											) + 
+		) + 
 			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
 		plot(myplot)
 	}
@@ -272,7 +275,7 @@ for(id in cluster_ids){
 	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
 																						 	(seurat.object@meta.data$orig.ident == "GMPm"),])
 	counts_df[id, "GMPm"] = cell_value
-
+	
 }
 
 ```
@@ -344,7 +347,7 @@ for (meta.col in colnames(seurat.object@meta.data)){
 											group.by = meta.col,
 											reduction = "umap", 
 											cols = color.palette
-											) + 
+		) + 
 			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
 		plot(myplot)
 	}
@@ -376,7 +379,7 @@ for(id in cluster_ids){
 	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
 																						 	(seurat.object@meta.data$orig.ident == "GMPm"),])
 	counts_df[id, "GMPm"] = cell_value
-
+	
 }
 
 ```
@@ -446,17 +449,34 @@ for(x in c(0.5, 1, 1.5, 2, 2.5)){
 
 ```{r}
 for (meta.col in colnames(seurat.object@meta.data)){
-	if(grepl(pattern = ("RNA_snn_res"), x = meta.col)==TRUE){
+	if(grepl(pattern = "RNA_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
 		myplot <- DimPlot(seurat.object, 
 											group.by = meta.col,
 											reduction = "umap", 
-											cols = color.palette
-											) + 
-			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col) ))
 		plot(myplot)
+		png(filename = paste0(projectName, " dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
 	}
 }
 ```
+
+
 
 ```{r}
 saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
@@ -464,18 +484,18 @@ saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 
 Generate statistics for each cluster/resolution combo
 ```{r}
-current_res <- 'RNA_snn_res.0.5'
+current_res <- 'RNA_snn_res.1'
 
 cluster_ids <- sort(unique(seurat.object@meta.data[,current_res]))
-counts_df <- data.frame(matrix(nrow = length(cluster_ids), ncol = 4))
+counts_df <- data.frame(matrix(nrow = length(cluster_ids), ncol = 9))
 rownames(counts_df) <- cluster_ids
-colnames(counts_df) <- c("LSKm2", "CMPm2", "MEPm", "GMPm")
+colnames(counts_df) <- c("LSKm2", "CMPm2", "MEPm", "GMPm", "TotInClust", "PctClusLSK", "PctClusCMP", "PctClusMEP", "PctClusGMP")
 for(id in cluster_ids){
 	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
 																						 	(seurat.object@meta.data$orig.ident == "LSKm2"),])
 	counts_df[id, "LSKm2"] = cell_value
 	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
-																						 	(seurat.object@meta.data$orig.ident == "LSKm2"),])
+																						 	(seurat.object@meta.data$orig.ident == "CMPm2"),])
 	counts_df[id, "CMPm2"] = cell_value
 	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
 																						 	(seurat.object@meta.data$orig.ident == "MEPm"),])
@@ -483,8 +503,22 @@ for(id in cluster_ids){
 	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
 																						 	(seurat.object@meta.data$orig.ident == "GMPm"),])
 	counts_df[id, "GMPm"] = cell_value
-
+	
 }
+counts_df["TotInClust"] <- rowSums(counts_df, na.rm = TRUE)
+counts_df$PctClusLSK <- round(counts_df$LSKm2/counts_df$TotInClust, 3)*100
+counts_df$PctClusCMP <- round(counts_df$CMPm2/counts_df$TotInClust, 3)*100
+counts_df$PctClusMEP <- round(counts_df$MEPm/counts_df$TotInClust, 3)*100
+counts_df$PctClusGMP <- round(counts_df$GMPm/counts_df$TotInClust, 3)*100
+xlsx::write.xlsx(x = counts_df, 
+								 file = paste0(projectName, "CellCountPerClust",ndims, "res.1.xlsx"), 
+								 sheetName = "res1", 
+								 col.names = TRUE, 
+								 row.names = TRUE, 
+								 append = TRUE)
+
+
+counts_df
 
 ```
 
@@ -510,7 +544,7 @@ clustree(seurat.object, prefix = "RNA_snn_res.", expres = 'scale.data', node_col
 clustree(seurat.object, prefix = "RNA_snn_res.", expres = 'counts', node_colour = "sc3_stability") + 
 	scale_color_continuous(low = 'red3', high = 'white')
 ```
-# Describe 95% of variance with 37 dimensions
+## Describe 95% of variance with 37 dimensions
 
 ### Neighborhood and umap
 ```{r}
@@ -537,7 +571,7 @@ for (meta.col in colnames(seurat.object@meta.data)){
 											group.by = meta.col,
 											reduction = "umap", 
 											cols = color.palette
-											) + 
+		) + 
 			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("RNA_snn_res", "", meta.col) ))
 		plot(myplot)
 	}
@@ -569,7 +603,7 @@ for(id in cluster_ids){
 	cell_value <- nrow(seurat.object@meta.data[(seurat.object@meta.data[current_res] == id) & 
 																						 	(seurat.object@meta.data$orig.ident == "GMPm"),])
 	counts_df[id, "GMPm"] = cell_value
-
+	
 }
 
 ```
@@ -616,12 +650,126 @@ clustree(seurat.object, prefix = "RNA_snn_res.", expres = 'counts', node_colour 
 
 # DGE
 I think clusters from 90% variance at 0.5 and 1.0 resolution are most stable. We'll do some statistics and DGE on that. Will also need to go back and play with SCTransform, since these are multiple cell types from multiple lanes.
-
+## Load favourite dim reduction file
 ```{r}
-seurat.obje
+rds.file <- "msAggr_seurat_dim26.RDS"
+seurat.object <- readRDS(rds.file)
+ndims <- as.numeric(gsub("[^0-9]", "", stringr::str_split(rds.file, "_")[[1]][3]))
+```
+
+## Set favourite resolution
+```{r}
+object.res <- ".0.5"
+Idents(seurat.object) <- paste0("RNA_snn_res", object.res)
+length(levels(seurat.object@active.ident))
 ```
 
 
+## count number of filtered cells left from each population
+```{r}
+# Number of filtered cells left in each pop
+sapply(c("LSKm2", "CMPm2", "MEPm", "GMPm"), function(x) (c(nrow(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x,]))))
+```
+
+```{r}
+par(mfrow = c(2, 2))
+for (x in c("LSKm2", "CMPm2", "MEPm", "GMPm")){
+	h = hist(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x, 'percent.mt'], breaks = 30, plot = FALSE)
+	h$density = h$counts/sum(h$counts)*100
+	plot(h,freq=FALSE, main =  paste(x, "percent mitoC"), xlab = "percent mitoC", ylab = "Frequency")
+}
+par(mfrow = c(1,1))
+```
+
+```{r fig.width=5}
+VlnPlot(subset(seurat.object, subset = orig.ident == "MEPm"), 
+				features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1, pt.size = 0, fill.by = 'ident', flip = TRUE)
+```
+
+
+## DGE w/ resolution = 0.5
+Strt with comparing all clusters against all other clusters and write out cluster info
+calculate `FindAllMarkers()` for different idents and save to new file
+```{r}
+# ident.list <- colnames(seurat.object@meta.data)[grepl("^RNA_snn", colnames(seurat.object@meta.data))]
+ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
+
+for(tested.ident in ident.list){
+	Idents(seurat.object) <- tested.ident
+	all.markers <- FindAllMarkers(seurat.object)
+	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
+									 file = paste0(projectName, "_FindALLMarkers_dim",ndims, "_allres.xlsx"), 
+									 sheetName = tested.ident, 
+									 col.names = TRUE, 
+									 row.names = FALSE, 
+									 append = TRUE)
+}
+```
+
+## Create `FindAllMarkers()` lists for GSEA
+```{r}
+object.res.allmarkers <- FindAllMarkers(seurat.object)
+```
+
+## Map HGNC symbols
+```{r}
+Mouse2HumanTable <- Mouse2Human(object.res.allmarkers$gene)
+
+HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(object.res.allmarkers$gene, Mouse2HumanTable$MGI)])
+head(object.res.allmarkers)
+object.res.allmarkers$HGNC <- HGNC
+tail(object.res.allmarkers)
+sig.res <- object.res.allmarkers[object.res.allmarkers$p_val_adj <= 0.05, ]
+sig.res <- sig.res[c("avg_log2FC", "HGNC", "cluster")]
+sig.res <- sig.res[!(sig.res$HGNC == "" | is.na(sig.res$HGNC)),] # GSEA will fail if there are any blanks or NAs in the table
+sig.res <- sig.res[]
+
+```
+
+
+```{r}
+for(cluster in unique(sig.res$cluster)){
+	print(paste("writing cluster", cluster))
+	new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
+	new.table <- new.table[order(-new.table$avg_log2FC), ]
+	dir.create(paste0("RankList_res", object.res, "_findAll_hgnc/"), showWarnings = FALSE)
+	write.table(new.table, file = paste0("RankList_res", object.res, "_findAll_hgnc/res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
+	
+}
+```
+
+
+
+calculate `FindMarkers()` that distinguish each cluster (might overlab between clusters)
+```{r}
+# ident.list <- colnames(seurat.object@meta.data)[grepl("^RNA_snn", colnames(seurat.object@meta.data))]
+ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
+for(tested.ident in ident.list){
+	for (cluster in sort(as.numeric(levels(seurat.object@meta.data[[tested.ident]])))){
+		cluster.markers <- FindMarkers(seurat.object, ident.1 = cluster)
+		xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
+										 file = paste0(projectName, "_FindMarkers_dim", ndims, gsub("RNA_snn_", "", tested.ident), ".xlsx"), 
+										 sheetName = paste0("clst", cluster), 
+										 col.names = TRUE, 
+										 row.names = TRUE, 
+										 append = TRUE)
+	}
+}
+```
+
+
+
+```{r}
+for (cluster in sort(as.numeric(levels(seurat.object@meta.data[paste0("RNA_snn_res", object.res)])))){
+	cluster.markers <- FindMarkers(seurat.object, ident.1 = cluster)
+	xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
+									 file = paste0(projectName, "_FindMarkers_dim", ndims, "res", object.res, ".xlsx"), 
+									 sheetName = paste0("clst", cluster), 
+									 col.names = TRUE, 
+									 row.names = TRUE, 
+									 append = TRUE)
+}
+```
 
 
 # Notes on cluster stability
@@ -635,23 +783,3 @@ Cluster stability could be influenced by:
 * neighborhood analysis used wrong parameters
 * Should include mitoC filter (there's a chunk of MEP w/ mitoC @ ~40%)
 * SCTransform accounts better for sources of variability
-
-```{r}
-# Number of filtered cells left in each pop
-sapply(c("LSKm2", "CMPm2", "MEPm", "GMPm"), function(x) (c(nrow(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x,]))))
-```
-
-```{r}
-for (x in c("LSKm2", "CMPm2", "MEPm", "GMPm")){
-	h = hist(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x, 'percent.mt'], breaks = 30, plot = FALSE)
-	h$density = h$counts/sum(h$counts)*100
-	plot(h,freq=FALSE, main =  paste(x, "percent mitoC"), xlab = "percent mitoC", ylab = "Frequency")
-}
-```
-
-Looks like MEPm is the only sample with that huge MitoC % lump @ 40%. What do these cells look like, otherwise?
-
-```{r fig.width=5}
-VlnPlot(subset(seurat.object, subset = orig.ident == "MEPm"), 
-				features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1, pt.size = 0, fill.by = 'ident', flip = TRUE)
-```
