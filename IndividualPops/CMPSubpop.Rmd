@@ -1,10 +1,9 @@
 ---
 title: "CMP_seurat"
-output: 
-  html_notebook: 
-    fig_height: 6
+output:
+  html_document:
+    df_print: paged
 ---
-
 Creating new pipeline using seurat v4.0.2 available 2021.06.23  
 Important notes:
 
@@ -457,7 +456,7 @@ head(xprsn.mtx[1:5, 1:5])
 biomark.export <- merge(xprsn.mtx, seurat.object@meta.data["RNA_snn_res.1"], by = 0)
 ```
 ```{r}
-write.table(biomark.export, file = paste0(projectName, "_ScaledData-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+write.table(biomark.export, file = paste0(projectName, "_Counts-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
 ```
 
 
