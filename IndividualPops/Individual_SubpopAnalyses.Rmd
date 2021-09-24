@@ -31,8 +31,8 @@ source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/Mouse2Human_idconve
 
 ## Set global variables
 ```{r}
-pop.id <- "GMP"
-folder.appendix <- "m"
+pop.id <- "CMP"
+folder.appendix <- "m2"
 fav.var <- 80
 object.res <- ".1"
 ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
@@ -506,6 +506,7 @@ dev.off()
 
 
 
+
 # Export for Biomark
 ## Import biomark probe list
 ```{r}
@@ -519,13 +520,17 @@ probe.list <- unlist(as.list(probe.list), use.names = FALSE)
 
 ```{r}
 xprsn.mtx <- t(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))[rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))) %in% probe.list, ])
-head(xprsn.mtx[1:5, 1:5])
-```
-```{r}
 biomark.export <- merge(xprsn.mtx, seurat.object@meta.data["RNA_snn_res.1"], by = 0)
-```
-```{r}
 write.table(biomark.export, file = paste0(projectName, "_Counts-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+
+xprsn.mtx <- t(as.data.frame(as.matrix(seurat.object@assays$RNA@data))[rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@data))) %in% probe.list, ])
+biomark.export <- merge(xprsn.mtx, seurat.object@meta.data["RNA_snn_res.1"], by = 0)
+write.table(biomark.export, file = paste0(projectName, "_Data-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+
+xprsn.mtx <- t(as.data.frame(as.matrix(seurat.object@assays$RNA@scale.data))[rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@scale.data))) %in% probe.list, ])
+biomark.export <- merge(xprsn.mtx, seurat.object@meta.data["RNA_snn_res.1"], by = 0)
+write.table(biomark.export, file = paste0(projectName, "_ScaleData-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+
 ```
 
 

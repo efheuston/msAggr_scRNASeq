@@ -500,7 +500,7 @@ VlnPlot(subset(seurat.object, subset = orig.ident == "MEPm"),
 ```
 
 
-## DGE w/ resolution = 0.5
+## DGE
 Strt with comparing all clusters against all other clusters and write out cluster info
 calculate `FindAllMarkers()` for different idents and save to new file
 ```{r}
