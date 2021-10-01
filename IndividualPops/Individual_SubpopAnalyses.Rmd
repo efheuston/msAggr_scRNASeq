@@ -33,12 +33,9 @@ source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/Mouse2Human_idconve
 ```{r}
 pop.id <- "CMP"
 folder.appendix <- "m2"
-fav.var <- 80
+fav.var <- 90
 object.res <- ".1"
 ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
-```
-
-```{r}
 folder.id <- paste0(pop.id, folder.appendix)
 projectName <- paste0(pop.id, "Subpop")
 ```
@@ -502,6 +499,12 @@ dev.off()
 
 
 
+# Hierarchcial clustering
+```{r}
+seurat.object <- SetIdent(seurat.object, value = "RNA_snn_res.0.5")
+seurat.object <- BuildClusterTree(seurat.object)
+PlotClusterTree(seurat.object, direction = "downwards")
+```
 
 
 
@@ -511,29 +514,47 @@ dev.off()
 ## Import biomark probe list
 ```{r}
 seurat.object <- readRDS(paste0(projectName, "_pctVar", fav.var, ".RDS"))
+seurat.object <- SetIdent(seurat.object, value = paste0("RNA_snn_res", object.res))
 ```
 
 ```{r}
 probe.list <- read.table("/Users/heustonef/Desktop/10XGenomicsData/BioMark/BiomarkRNAs.txt", header = FALSE)
 probe.list <- unlist(as.list(probe.list), use.names = FALSE)
+probe.list <- c(probe.list, "Kit", "Il3ra")
+```
+## downsample
+__NOTE: do I need to do the downsampling before the corrections? Probably not, because I'm exporting counts and not corrected data
+```{r}
+object.downsample <- subset(biomark.object, cells = sample(Cells(biomark.object), 300))
 ```
 
+## generate and export counts matrix
 ```{r}
-xprsn.mtx <- t(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))[rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))) %in% probe.list, ])
-biomark.export <- merge(xprsn.mtx, seurat.object@meta.data["RNA_snn_res.1"], by = 0)
+xprsn.mtx <- t(as.data.frame(as.matrix(GetAssayData(object.downsample, slot = "counts"))))
+object.metadata <- seurat.object@meta.data[rownames(seurat.object@meta.data) %in% rownames(xprsn.mtx), ]
+# biomark.export <- xprsn.mtx
+biomark.export <- merge(xprsn.mtx, object.metadata[paste0("RNA_snn_res", object.res)], by = 0)
+colnames(biomark.export)[colnames(biomark.export) == "Kit"] <- "Cd117"
+colnames(biomark.export)[colnames(biomark.export) == "Il3ra"] <- "Cd123"
 write.table(biomark.export, file = paste0(projectName, "_Counts-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
 
-xprsn.mtx <- t(as.data.frame(as.matrix(seurat.object@assays$RNA@data))[rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@data))) %in% probe.list, ])
-biomark.export <- merge(xprsn.mtx, seurat.object@meta.data["RNA_snn_res.1"], by = 0)
+xprsn.mtx <- t(as.data.frame(as.matrix(GetAssayData(object.downsample, slot = "data"))))
+object.metadata <- seurat.object@meta.data[rownames(seurat.object@meta.data) %in% rownames(xprsn.mtx), ]
+# biomark.export <- xprsn.mtx
+biomark.export <- merge(xprsn.mtx, object.metadata[paste0("RNA_snn_res", object.res)], by = 0)
+colnames(biomark.export)[colnames(biomark.export) == "Kit"] <- "Cd117"
+colnames(biomark.export)[colnames(biomark.export) == "Il3ra"] <- "Cd123"
 write.table(biomark.export, file = paste0(projectName, "_Data-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
 
-xprsn.mtx <- t(as.data.frame(as.matrix(seurat.object@assays$RNA@scale.data))[rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@scale.data))) %in% probe.list, ])
-biomark.export <- merge(xprsn.mtx, seurat.object@meta.data["RNA_snn_res.1"], by = 0)
+xprsn.mtx <- t(as.data.frame(as.matrix(GetAssayData(object.downsample, slot = "scale.data"))))
+object.metadata <- seurat.object@meta.data[rownames(seurat.object@meta.data) %in% rownames(xprsn.mtx), ]
+# biomark.export <- xprsn.mtx
+biomark.export <- merge(xprsn.mtx, object.metadata[paste0("RNA_snn_res", object.res)], by = 0)
+colnames(biomark.export)[colnames(biomark.export) == "Kit"] <- "Cd117"
+colnames(biomark.export)[colnames(biomark.export) == "Il3ra"] <- "Cd123"
 write.table(biomark.export, file = paste0(projectName, "_ScaleData-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
 
 ```
-
-
 
 # DGE
 I think clusters from 80% variance at 0.5 and 1.0 resolution are most stable. We'll do some statistics and DGE on that. Will also need to go back and play with SCTransform, since these are multiple cell types from multiple lanes.

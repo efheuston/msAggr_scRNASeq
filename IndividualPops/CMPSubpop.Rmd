@@ -449,7 +449,16 @@ probe.list <- unlist(as.list(probe.list), use.names = FALSE)
 ```
 
 ```{r}
+setdiff(probe.list, rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))))
+setdiff(c("Kit", "Il3ra"), rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))))
+
+```
+
+
+```{r}
 xprsn.mtx <- t(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))[rownames(as.data.frame(as.matrix(seurat.object@assays$RNA@counts))) %in% probe.list, ])
+colnames(xprsn.mtx)[colnames(xprsn.mtx) == "Cd117"] <- "Kit"
+colnames(xprsn.mtx)[colnames(xprsn.mtx) == "Cd123"] <- "Il3ra"
 head(xprsn.mtx[1:5, 1:5])
 ```
 ```{r}
