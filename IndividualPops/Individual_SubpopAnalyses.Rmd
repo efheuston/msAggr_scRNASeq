@@ -499,12 +499,8 @@ dev.off()
 
 
 
-# Hierarchcial clustering
-```{r}
-seurat.object <- SetIdent(seurat.object, value = "RNA_snn_res.0.5")
-seurat.object <- BuildClusterTree(seurat.object)
-PlotClusterTree(seurat.object, direction = "downwards")
-```
+
+
 
 
 
@@ -555,6 +551,69 @@ colnames(biomark.export)[colnames(biomark.export) == "Il3ra"] <- "Cd123"
 write.table(biomark.export, file = paste0(projectName, "_ScaleData-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
 
 ```
+
+## Heatmap cluster
+```{r}
+seurat.object <- SetIdent(seurat.object, value = "RNA_snn_res.0.5")
+seurat.markers <- FindAllMarkers(seurat.object)
+```
+```{r}
+# backup.seurat.markers <- seurat.markers
+seurat.markers <- backup.seurat.markers
+```
+
+```{r warning=FALSE}
+# seurat.markers.dplyr <- seurat.markers %>% group_by(cluster) %>% arrange(desc(avg_log2FC))
+# biomark.intersect <- seurat.markers[rownames(seurat.markers) %in% probe.list, ]
+# biomark.intersect <- biomark.intersect[biomark.intersect$p_val_adj < 0.05, ]
+# biomark.intersect <- biomark.intersect[order(biomark.intersect$cluster, -biomark.intersect$avg_log2FC),]
+```
+```{r}
+# seurat.markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC) -> biomark.intersect
+biomark.intersect <- seurat.markers[seurat.markers$gene %in% probe.list,]
+biomark.intersect %>% group_by(cluster) %>% arrange(desc(avg_log2FC)) -> biomark.intersect
+DoHeatmap(seurat.object, features = biomark.intersect$gene)
+png(filename = paste0(projectName, "_pctVar", fav.var, "res.0.5.png"), height = 1600, width = 1600)
+DoHeatmap(seurat.object, features = biomark.intersect$gene)
+dev.off()
+```
+
+
+
+
+
+```{r}
+biomark.order <- c("Ifitm1", "Lgals3", "Txnip", "Ube2c", "Cst3", "Lmo4", "Psap", "S100a8", "Fos", "Rbp2", "Kit", "Klf6", "AA467197", "Cd34","Ly6c2", "Hist1h2ap", "Ly6a", "Pbx1", "Apoe", "Cd44", "Emb", "Actb", "Csrp3", "Lsp1", "Ms4a2", "Cpa3", "Gp1bb", "Mt2" ,"Ccl3", "Cebpe", "H2-Aa", "B2m", "Mpl", "Ctla2a", "Cd69", "Cd53", "Flt3", "Egr1", "Nrgn", "Aif1", "Jun", "Cd9", "Irf8", "Hp", "Prtn3", "Vamp5", "Cd27", "Birc5", "Mpo", "Vwf", "Cnrip1", "Itga2b", "Cd74", "Hlf", "Ms4a6c", "Kng2", "Jund", "Lyz2", "Il3ra", "Cd48", "Cd82", "Ccl9", "Gata1", "Tsc22d1", "Ly86", "Mecom", "S100a11", "Itgb3", "Gata2", "Sell", "Dhrs3", "Cd52", "Pf4", "Tsmb4x", "Klf1", "Tmod1", "Cd177", "Dntt")
+setdiff(biomark.order, seurat.markers$gene)
+```
+
+```{r}
+biomark.intersect <- seurat.markers[seurat.markers$gene %in% biomark.order,]
+# biomark.intersect$gene <- factor(biomark.intersect$gene, levels = biomark.order)
+biomark.intersect %>% group_by(cluster) %>% arrange(factor(biomark.intersect$gene, levels = biomark.order)) -> biomark.intersect
+biomark.heatmap <- DoHeatmap(seurat.object, features = biomark.intersect$gene)
+```
+```{r}
+png(filename = paste0(projectName, "_pctVar", fav.var, "res.0.5-biomarkorder.png"), height = 1600, width = 1600)
+plot(biomark.heatmap)
+dev.off()
+```
+
+
+
+
+
+
+## Hierarchcial clustering
+```{r}
+# seurat.object <- SetIdent(seurat.object, value = "RNA_snn_res.0.5")
+seurat.object <- BuildClusterTree(seurat.object)
+PlotClusterTree(seurat.object, direction = "downwards")
+```
+
+
+
+
 
 # DGE
 I think clusters from 80% variance at 0.5 and 1.0 resolution are most stable. We'll do some statistics and DGE on that. Will also need to go back and play with SCTransform, since these are multiple cell types from multiple lanes.
