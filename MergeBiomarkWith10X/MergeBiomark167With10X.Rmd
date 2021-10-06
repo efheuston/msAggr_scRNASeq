@@ -14,28 +14,29 @@ Compared to archive 1, this version imports Biomark Ct spreadsheets that do not 
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/MergeBiomarkWith10X/")
 ```
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 library(dplyr)
 library(Seurat)
 library(patchwork)
 library(ggplot2)
 library(cowplot)
+library(clustree)
 ```
 
-# Set global variables
+## Set global variables
 ```{r}
+fav.var <- 95
+object.res <- ".0.5"
+ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
 projectName <- "Mergebiomark167With10X"
 ```
-
-
 
 ```{r}
 source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
 source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/PercentVariance.R")
 source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/read_10XGenomics_data.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/Mouse2Human_idconversion.R")
 ```
-
-
 store session info
 ```{r }
 sink(paste0(projectName, ".txt"))
@@ -55,6 +56,14 @@ biomark.data[is.na(biomark.data)] <- 0
 # Limit to CMP data
 biomark.data <- biomark.data[grepl("CMP", rownames(biomark.data)) == TRUE,]
 dim(biomark.data)
+```
+```{r}
+# fix non-MGI gene names
+colnames(biomark.data)[colnames(biomark.data) == 'Cd117'] <- 'Kit'
+colnames(biomark.data)[colnames(biomark.data) == 'Cd123'] <- 'Il3ra'
+colnames(biomark.data)[colnames(biomark.data) == 'H2.Aa'] <- 'H2-Aa'
+colnames(biomark.data)[colnames(biomark.data) == 'H2.Ab1'] <- 'H2-Ab1'
+biomark.data <- subset(biomark.data, select = -Kng2)
 ```
 Convert to pseudoexpression data
 ```{r}
@@ -83,14 +92,6 @@ pseudo.biomark <- 2^-dbiomark.data
 ```
 
 
-```{r}
-# fix non-MGI gene names
-colnames(pseudo.biomark)[colnames(pseudo.biomark) == 'Cd117'] <- 'Kit'
-colnames(pseudo.biomark)[colnames(pseudo.biomark) == 'Cd123'] <- 'Il3ra'
-colnames(pseudo.biomark)[colnames(pseudo.biomark) == 'H2.Aa'] <- 'H2-Aa'
-colnames(pseudo.biomark)[colnames(pseudo.biomark) == 'H2.Ab1'] <- 'H2-Ab1'
-pseudo.biomark <- subset(pseudo.biomark, select = -Kng2)
-```
 
 
 
@@ -208,16 +209,16 @@ paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
 ```
 
 # scRNASeq integration	
- neither sctransform nor normalizedata/scaledata gave what looked like reasonable results.
+neither sctransform nor normalizedata/scaledata gave what looked like reasonable results.
 
 https://satijalab.org/seurat/articles/integration_introduction.html
 
 
 ```{r}
-tech.list <- SplitObject(seurat.object, split.by = "orig.ident")
+tech.list <- c(cmp.object, biomark)
 tech.list <- lapply(X = tech.list, FUN = function(x) {
-    x <- NormalizeData(x)
-    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 10)
+	x <- NormalizeData(x)
+	x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 10)
 })
 ```
 
@@ -235,28 +236,250 @@ tech.integrated <- IntegrateData(anchorset = tech.anchors, k.weight = 5)
 DefaultAssay(tech.integrated) <- "integrated"
 tech.integrated <- ScaleData(tech.integrated)
 tech.integrated <- RunPCA(tech.integrated, npcs = 30)
-DimPlot(tech.integrated, reduction = "pca", group.by = "orig.ident")
+DimPlot(tech.integrated, reduction = "pca", group.by = "orig.ident", pt.size = 2)
 ```
 
 so it looks like anchor-based integration is much nicer! goign to stick with this approach.
 
-Problem now is, how do we find whether Biomark overlays on 10X
 
 
+Number of PCs describing X% of variance
 
-## tech.integrated umap
 ```{r}
 tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
-paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
-paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
-paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
-paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
-ndims <- length(which(cumsum(tot.var) <= 90))
+paste0("Num pcs for 80% variance: ", length(which(cumsum(tot.var) <= 80)))
+paste0("Num pcs for 85% variance: ", length(which(cumsum(tot.var) <= 85)))
+paste0("Num pcs for 90% variance: ", length(which(cumsum(tot.var) <= 90)))
+paste0("Num pcs for 95% variance: ", length(which(cumsum(tot.var) <= 95)))
+
+```
+
+
+# ID clusters based on different variances
+## Describe 80% of variance 
+
+### Neighborhood and umap
+```{r}
+tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 80
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+print(ndims)
+
+tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
+tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
+tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims)
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5)){
+	tech.integrated <- FindClusters(tech.integrated, resolution = x)
+}
 ```
 
 ```{r}
-tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims, reduction = "pca")
-tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims, reduction = "pca")
+for (meta.col in colnames(tech.integrated@meta.data)){
+	if(grepl(pattern = "integrated_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
+		myplot <- DimPlot(tech.integrated, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
+		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(tech.integrated, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
+	}
+}
+```
+
+```{r}
+saveRDS(tech.integrated, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
+```
+
+### Evaluate cluster stability
+```{r fig.height=5}
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
+dev.off()
+```
+
+
+
+
+
+
+
+## Describe 85% of variance 
+
+### Neighborhood and umap
+```{r}
+tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 85
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+print(ndims)
+
+tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
+tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
+tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims)
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5)){
+	tech.integrated <- FindClusters(tech.integrated, resolution = x)
+}
+```
+
+```{r}
+for (meta.col in colnames(tech.integrated@meta.data)){
+	if(grepl(pattern = "integrated_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
+		myplot <- DimPlot(tech.integrated, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
+		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(tech.integrated, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
+	}
+}
+```
+
+```{r}
+saveRDS(tech.integrated, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
+```
+
+### Evaluate cluster stability
+```{r fig.height=5}
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
+dev.off()
+```
+
+
+
+
+
+
+## Describe 90% of variance 
+
+### Neighborhood and umap
+```{r}
+tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 90
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+print(ndims)
+
+tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
+tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
+tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims)
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5)){
+	tech.integrated <- FindClusters(tech.integrated, resolution = x)
+}
+```
+
+```{r}
+for (meta.col in colnames(tech.integrated@meta.data)){
+	if(grepl(pattern = "integrated_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
+		myplot <- DimPlot(tech.integrated, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
+		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(tech.integrated, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
+	}
+}
+```
+
+```{r}
+saveRDS(tech.integrated, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
+```
+
+### Evaluate cluster stability
+```{r fig.height=5}
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
+dev.off()
+```
+
+
+
+
+
+
+## Describe 95% of variance 
+
+### Neighborhood and umap
+```{r}
+tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 95
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+print(ndims)
+
+tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
+tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
+tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims)
+```
+Plot UMAP
+
+```{r warning=FALSE, results='hide'}
 for(x in c(0.5, 1, 1.5, 2, 2.5)){
 	tech.integrated <- FindClusters(tech.integrated, resolution = x)
 }
@@ -264,210 +487,96 @@ for(x in c(0.5, 1, 1.5, 2, 2.5)){
 
 ```{r}
 for (meta.col in colnames(tech.integrated@meta.data)){
-	if(grepl(pattern = ("integrated_snn_res"), x = meta.col)==TRUE){
+	if(grepl(pattern = "integrated_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
 		myplot <- DimPlot(tech.integrated, 
 											group.by = meta.col,
 											reduction = "umap", 
-											cols = color.palette
-											) + 
-			ggtitle(paste0(projectName, " dim", ndims, "res", gsub("integrated_snn_res", "", meta.col) ))
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
 		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(tech.integrated, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
 	}
 }
 ```
 
-Switch ident
 ```{r}
-Idents(tech.integrated) <- "integrated_snn_res.0.5"
+saveRDS(tech.integrated, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
 ```
 
-```{r fig.width = 15, fig.height=20}
-DimPlot(tech.integrated, group.by = "clust.ID", pt.size = 2, split.by = "ident", ncol = 4, cols = color.palette, shape.by = "orig.ident") + ggmin::theme_powerpoint()
-```
-
-
-```{r fig.width=20}
-DimPlot(tech.integrated, group.by = "orig.ident", pt.size = 2, ncol = 2)
-```
-
-```{r fig.width=10, fig.height=20}
-DimPlot(tech.integrated, group.by = "orig.ident", pt.size = 2, ncol = 1, split.by = "clust.ID", cols = c("red", "black")) + ggmin::theme_powerpoint()
-```
-
-
-
-
-```{r}
-png("tech.integrated_biomark167UMAP.res.0.5.png", width = 1600, height = 1600)
-DimPlot(tech.integrated, split.by = "ident", group.by = "orig.ident", pt.size = 2, ncol = 5, ) + ggmin::theme_powerpoint()
+### Evaluate cluster stability
+```{r fig.height=5}
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
 dev.off()
 ```
 
 
+
+## Create `FindAllMarkers()` lists for GSEA
 ```{r}
-png(filename = "tech.integrated_biomark167FeatureFluor.png", height = 1600, width =1600)
-FeaturePlot(tech.integrated, features = c("Cd34pos", "Cd135pos", "Cd9pos", "Cd36pos", "Cd41pos", "Cd48pos", "Cd123pos", "Cd150pos", "Cd135pos"), reduction = "pca", cols = c("gray92", "blue"), keep.scale = "all", ncol = 3, pt.size = 2)
-dev.off()
+ident.list <- c("integrated_snn_res.0.5")
+
+for(tested.ident in ident.list){
+	Idents(tech.integrated) <- tested.ident
+	all.markers <- FindAllMarkers(tech.integrated)
+	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
+									 file = paste0(projectName, " pctVar", pct.var, "_allres.xlsx"), 
+									 sheetName = tested.ident, 
+									 col.names = TRUE, 
+									 row.names = FALSE, 
+									 append = TRUE)
+}
 ```
 
+## Map HGNC symbols
 ```{r}
-for(i in c("Cd34pos", "Cd135pos", "Cd9pos", "Cd36pos", "Cd41pos", "Cd48pos", "Cd123pos", "Cd150pos", "Cd135pos")){
-	my_title <- paste0("tech.integrated_biomark167Fluor_", i, ".png")
-	print(my_title)
-png(filename = my_title, height = 1000, width = 6200)
-my_plot <- FeaturePlot(tech.integrated, features = i, split.by = "ident", reduction = "pca", cols = c("gray92", "blue"), keep.scale = "all", ncol = 5, pt.size = 3)
-plot(my_plot)
-dev.off()
+Mouse2HumanTable <- Mouse2Human(object.res.allmarkers$gene)
+
+HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(object.res.allmarkers$gene, Mouse2HumanTable$MGI)])
+head(object.res.allmarkers)
+object.res.allmarkers$HGNC <- HGNC
+tail(object.res.allmarkers)
+sig.res <- object.res.allmarkers[object.res.allmarkers$p_val_adj <= 0.05, ]
+sig.res <- sig.res[c("avg_log2FC", "HGNC", "cluster")]
+sig.res <- sig.res[!(sig.res$HGNC == "" | is.na(sig.res$HGNC)),] # GSEA will fail if there are any blanks or NAs in the table
+sig.res <- sig.res[]
+
+```
+
+
+```{r}
+for(cluster in unique(sig.res$cluster)){
+	print(paste("writing cluster", cluster))
+	new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
+	new.table <- new.table[order(-new.table$avg_log2FC), ]
+	try(dir.create(paste0("RankList_res", object.res, "_findAll_hgnc/"), showWarnings = FALSE))
+	try(write.table(new.table, file = paste0(projectName, "RankList_pctVar", pct.var, "res", object.res, "_findAll_hgnc/res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", ))
+	
 }
 ```
 
 
-```{r}
-# for(i in unique(tech.integrated@meta.data$clust.ID)){
-	# my_title <- paste0("tech.integrated_biomark167clustID_", i, ".png")
-	print(my_title)
-png(filename = "tech.integrated_biomark167clustID.png", height = 1000, width = 6200)
-my_plot <- DimPlot(tech.integrated, pt.size = 6, group.by = "clust.ID", split.by = "ident", shape.by = "orig.ident") + ggmin::theme_powerpoint()
-plot(my_plot)
-dev.off()
-# }
-```
 
 
-# Biomark Only
-## Load biomark data
-
-```{r}
-biomark.data <- read.table("biomark167_expressionMatrix.txt", sep = "\t", header = TRUE, row.names = 1)
-biomark.data[is.na(biomark.data)] <- 0
-biomark.data.T <- data.table::transpose(biomark.data)
-colnames(biomark.data.T) <- rownames(biomark.data)
-rownames(biomark.data.T) <- colnames(biomark.data)
-# fix non-MGI gene names
-rownames(biomark.data.T)[rownames(biomark.data.T) == 'Cd117'] <- 'Kit'
-rownames(biomark.data.T)[rownames(biomark.data.T) == 'Cd123'] <- 'Il3ra'
-rownames(biomark.data.T)[rownames(biomark.data.T) == 'H2.Aa'] <- 'H2-Aa'
-rownames(biomark.data.T)[rownames(biomark.data.T) == 'H2.Ab1'] <- 'H2-Ab1'
-```
-
-Pull in original cellID info 
-
-```{r}
-biomark.order <- read.table("origBiomark_cellIDorder.txt", sep = "\t", header = FALSE, row.names = 1)
-```
-
-
-```{r}
-biomark.order["clust.ID"] <- NA
-biomark.order[1:49, "clust.ID"] <- 0
-biomark.order[50:87, "clust.ID"] <- 17
-biomark.order[88:102, "clust.ID"] <- 10
-biomark.order[103:117, "clust.ID"] <- 0
-biomark.order[118:127, "clust.ID"] <- 3
-biomark.order[128:150, "clust.ID"] <- 0
-biomark.order[151:189, "clust.ID"] <- 11
-biomark.order[190:281, "clust.ID"] <- 0
-```
-
-```{r warning=FALSE, message=FALSE}
-biomark.meta <- data.frame(stringr::str_split_fixed(rownames(biomark.data), "_", 3)[,2:3], row.names = rownames(biomark.data))
-colnames(biomark.meta) <- c("wid", "pid")
-
-
-biomark.meta['nFeature_RNA'] <- NA
-for(cell in colnames(biomark.data.T)){
-	ngenes <- length(which(!(biomark.data.T[colnames(biomark.data.T > 0) == cell])))
-	biomark.meta[rownames(biomark.meta) == cell, 'nFeature_RNA'] <- ngenes
-}
-i1 <- match(row.names(biomark.meta), row.names(biomark.order))
-biomark.meta[names(biomark.order)[1]] <- lapply(biomark.order[1], `[`, i1)
-
-```
-
-```{r}
-# N.B., can't find alternate name for Kng2, so remove
-biomark.data.T <- biomark.data.T[!(rownames(biomark.data.T) == "Kng2"), ]
-biomark.data.T <- as.sparse(biomark.data.T)
-biomark <- CreateSeuratObject(biomark.data.T, project = "Biomark", assay = "RNA", meta.data = biomark.meta)
-```
-
-
-
-
-
-```{r}
-biomark <- NormalizeData(biomark, normalization.method = "LogNormalize", scale.factor = 10000)
-biomark <- FindVariableFeatures(biomark, selection.method = "vst", nfeatures = 10)
-all.genes <- rownames(biomark)
-biomark <- ScaleData(biomark, features = all.genes, vars.to.regress = c("nFeature_RNA", "pid", "nCounts_RNA"))
-```
-
-### Save merged object
-```{r}
-# saveRDS(biomark, file = paste0(projectName, "_raw.RDS"))
-```
-## Run PCA
-```{r}
-biomark <- RunPCA(biomark, ndims.print = 1:5, nfeatures.print = 5, features = all.genes)
-```
-
-
-```{r}
-DimPlot(biomark, reduction = "pca", group.by = "orig.ident")
-VizDimLoadings(biomark, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
-
-```
-
-Calculate dimensionality
-```{r}
-ElbowPlot(biomark, ndims = 50)
-percent.variance(biomark@reductions$pca@stdev)
-```
-
-
-
-
-## Calculate percent variance
-```{r}
-tot.var <- percent.variance(biomark@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
-paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
-paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
-paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
-paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
-
-```
-
-## Add cluster IDs from Seurat v1
-
-Exported cell IDs for clusters 3, 17, 10, 11 from Seurat v1. Will add these IDs as a metadata column.  
-Create column "clust.ID" and populate with 0's. Then import IDs for clusters
-
-
-
-## Lets see which cells correspond to our old clusters
-
-```{r}
-DimPlot(biomark, reduction = "pca", group.by = "orig.ident") + facet_wrap(~orig.ident)
-```
-
-
-```{r fig.width=15, fig.height=8}
-biomark@meta.data$clust.ID <- as.factor(biomark@meta.data$clust.ID)
-DimPlot(biomark, group.by = "clust.ID", pt.size = 2, shape.by = "clust.ID")
-```
-
-
-
-```{r fig.width=15, fig.height = 5}
-DimPlot(biomark, split.by = "clust.ID", pt.size = 2, shape.by = "orig.ident")
-```
-
-
-
-
-
-
-# Setup
+# Export 10X for Seaborn clustering
 ## Load libraries required for Seuratv4
 ```{r message=FALSE, warning=FALSE}
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/IndividualPops/")
@@ -521,8 +630,8 @@ biomark.object <- subset(seurat.object, features = probe.list)
 biomark.object[["percent.mt"]] <- PercentageFeatureSet(biomark.object, pattern = "^mt-")
 print(paste("original object:", nrow(biomark.object@meta.data), "cells", sep = " "))
 biomark.object <- subset(biomark.object, 
-												subset = nFeature_RNA >=25 & 
-													percent.mt <= 5
+												 subset = nFeature_RNA >=25 & 
+												 	percent.mt <= 5
 )
 print(paste("new object:", nrow(biomark.object@meta.data), "cells", sep = " "))
 biomark.object <- NormalizeData(biomark.object, normalization.method = "LogNormalize", scale.factor = 10000)
