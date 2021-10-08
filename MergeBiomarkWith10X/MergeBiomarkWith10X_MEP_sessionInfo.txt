@@ -16,16 +16,15 @@ other attached packages:
 [1] clustree_0.4.3     ggraph_2.0.5       cowplot_1.1.1      ggplot2_3.3.5      patchwork_1.1.1    SeuratObject_4.0.2 Seurat_4.0.4       dplyr_1.0.7       
 
 loaded via a namespace (and not attached):
-  [1] Rtsne_0.15            colorspace_2.0-2      deldir_0.2-10         ellipsis_0.3.2        ggridges_0.5.3        spatstat.data_2.1-0   leiden_0.3.9          listenv_0.8.0         farver_2.1.0         
- [10] graphlayouts_0.7.1    ggrepel_0.9.1         fansi_0.5.0           codetools_0.2-16      splines_4.0.2         knitr_1.36            polyclip_1.10-0       jsonlite_1.7.2        rJava_1.0-5          
- [19] ica_1.0-2             cluster_2.1.0         png_0.1-7             uwot_0.1.10           ggforce_0.3.3         shiny_1.7.1           sctransform_0.3.2     spatstat.sparse_2.0-0 compiler_4.0.2       
- [28] httr_1.4.2            assertthat_0.2.1      Matrix_1.3-4          fastmap_1.1.0         lazyeval_0.2.2        later_1.3.0           tweenr_1.0.2          htmltools_0.5.2       tools_4.0.2          
- [37] igraph_1.2.6          gtable_0.3.0          glue_1.4.2            RANN_2.6.1            reshape2_1.4.4        Rcpp_1.0.7            scattermore_0.7       vctrs_0.3.8           nlme_3.1-148         
- [46] lmtest_0.9-38         xfun_0.26             stringr_1.4.0         globals_0.14.0        xlsxjars_0.6.1        mime_0.12             miniUI_0.1.1.1        lifecycle_1.0.1       irlba_2.3.3          
- [55] xlsx_0.6.5            goftest_1.2-2         future_1.22.1         MASS_7.3-51.6         zoo_1.8-9             scales_1.1.1          tidygraph_1.2.0       spatstat.core_2.3-0   promises_1.2.0.1     
- [64] spatstat.utils_2.2-0  parallel_4.0.2        RColorBrewer_1.1-2    reticulate_1.22       pbapply_1.5-0         gridExtra_2.3         rpart_4.1-15          stringi_1.6.2         rlang_0.4.11         
- [73] pkgconfig_2.0.3       matrixStats_0.61.0    lattice_0.20-41       ROCR_1.0-11           purrr_0.3.4           tensor_1.5            htmlwidgets_1.5.4     tidyselect_1.1.1      parallelly_1.28.1    
- [82] RcppAnnoy_0.0.19      plyr_1.8.6            magrittr_2.0.1        R6_2.5.1              generics_0.1.0        DBI_1.1.1             pillar_1.6.3          withr_2.4.2           mgcv_1.8-31          
- [91] fitdistrplus_1.1-6    survival_3.1-12       abind_1.4-5           tibble_3.1.5          future.apply_1.8.1    crayon_1.4.1          KernSmooth_2.23-17    utf8_1.2.2            spatstat.geom_2.2-2  
-[100] plotly_4.9.4.1        viridis_0.6.1         grid_4.0.2            data.table_1.14.2     digest_0.6.28         xtable_1.8-4          tidyr_1.1.4           httpuv_1.6.3          munsell_0.5.0        
-[109] viridisLite_0.4.0    
+  [1] nlme_3.1-148          matrixStats_0.61.0    spatstat.sparse_2.0-0 RcppAnnoy_0.0.19      RColorBrewer_1.1-2    httr_1.4.2            sctransform_0.3.2     tools_4.0.2           utf8_1.2.2           
+ [10] R6_2.5.1              irlba_2.3.3           rpart_4.1-15          KernSmooth_2.23-17    uwot_0.1.10           mgcv_1.8-31           DBI_1.1.1             lazyeval_0.2.2        colorspace_2.0-2     
+ [19] withr_2.4.2           tidyselect_1.1.1      gridExtra_2.3         compiler_4.0.2        plotly_4.9.4.1        scales_1.1.1          lmtest_0.9-38         spatstat.data_2.1-0   ggridges_0.5.3       
+ [28] pbapply_1.5-0         goftest_1.2-2         stringr_1.4.0         digest_0.6.28         spatstat.utils_2.2-0  pkgconfig_2.0.3       htmltools_0.5.2       parallelly_1.28.1     fastmap_1.1.0        
+ [37] htmlwidgets_1.5.4     rlang_0.4.11          shiny_1.7.1           farver_2.1.0          generics_0.1.0        zoo_1.8-9             jsonlite_1.7.2        ica_1.0-2             magrittr_2.0.1       
+ [46] Matrix_1.3-4          Rcpp_1.0.7            munsell_0.5.0         fansi_0.5.0           viridis_0.6.1         abind_1.4-5           reticulate_1.22       lifecycle_1.0.1       stringi_1.6.2        
+ [55] MASS_7.3-51.6         Rtsne_0.15            plyr_1.8.6            grid_4.0.2            parallel_4.0.2        listenv_0.8.0         promises_1.2.0.1      ggrepel_0.9.1         crayon_1.4.1         
+ [64] miniUI_0.1.1.1        deldir_0.2-10         lattice_0.20-41       graphlayouts_0.7.1    splines_4.0.2         tensor_1.5            knitr_1.36            pillar_1.6.3          igraph_1.2.6         
+ [73] spatstat.geom_2.2-2   future.apply_1.8.1    reshape2_1.4.4        codetools_0.2-16      leiden_0.3.9          glue_1.4.2            data.table_1.14.2     tweenr_1.0.2          png_0.1-7            
+ [82] vctrs_0.3.8           httpuv_1.6.3          gtable_0.3.0          RANN_2.6.1            purrr_0.3.4           spatstat.core_2.3-0   polyclip_1.10-0       tidyr_1.1.4           scattermore_0.7      
+ [91] future_1.22.1         assertthat_0.2.1      ggforce_0.3.3         xfun_0.26             mime_0.12             tidygraph_1.2.0       xtable_1.8-4          later_1.3.0           survival_3.1-12      
+[100] viridisLite_0.4.0     tibble_3.1.5          cluster_2.1.0         globals_0.14.0        fitdistrplus_1.1-6    ellipsis_0.3.2        ROCR_1.0-11          
