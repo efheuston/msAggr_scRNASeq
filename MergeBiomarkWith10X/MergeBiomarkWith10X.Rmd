@@ -1,5 +1,5 @@
 ---
-title: "Mergebiomark167With10X"
+title: "MergeBiomarkWith10X"
 output:
   html_document:
     df_print: paged
@@ -7,9 +7,14 @@ output:
 
 # Updates
 
+
+## 20211007
+Gonna crank through LSK and MEP, then go back to the fluorophore data
+
 ## 20211005
 Compared to archive 1, this version imports Biomark Ct spreadsheets that do not include fluorophore data 
 
+# Setup
 ```{r setup}
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/MergeBiomarkWith10X/")
 ```
@@ -25,10 +30,12 @@ library(clustree)
 
 ## Set global variables
 ```{r}
+pop.of.interest <- "CMP"
+cellranger.folder <- "m2"
 fav.var <- 95
 object.res <- ".0.5"
 ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
-projectName <- "Mergebiomark167With10X"
+projectName <- paste0("MergeBiomarkWith10X_", pop.of.interest)
 ```
 
 ```{r}
@@ -39,7 +46,7 @@ source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/Mouse2Human_idconve
 ```
 store session info
 ```{r }
-sink(paste0(projectName, ".txt"))
+sink(paste0(projectName, "_sessionInfo.txt"))
 sessionInfo()
 sink()
 ```
@@ -53,8 +60,8 @@ Try to read in Biomark Data
 biomark.data <- read.table("/Users/heustonef/Desktop/10XGenomicsData/BioMark/Biomark_CT.txt", sep = "\t", header = TRUE, row.names = 1)
 biomark.data[is.na(biomark.data)] <- 0
 
-# Limit to CMP data
-biomark.data <- biomark.data[grepl("CMP", rownames(biomark.data)) == TRUE,]
+# Limit to biomark pop subset
+biomark.data <- biomark.data[grepl(pop.of.interest, rownames(biomark.data)) == TRUE,]
 dim(biomark.data)
 ```
 ```{r}
@@ -114,27 +121,30 @@ for(cell in colnames(pseudo.biomark.T)){
 ```{r}
 pseudo.biomark.T[is.na(pseudo.biomark.T)] <- 0
 pseudo.biomark.T <- as.sparse(pseudo.biomark.T)
-biomark <- CreateSeuratObject(pseudo.biomark.T, project = "Biomark", assay = "RNA", meta.data = biomark.meta)
+biomark.object <- CreateSeuratObject(pseudo.biomark.T, project = "Biomark", assay = "RNA", meta.data = biomark.meta)
 ```
 
 ## Load SC data
 
 ```{r warning=FALSE}
 setwd("~/Desktop/10XGenomicsData/cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
-data_file.list <- read_10XGenomics_data(sample.list = "CMPm2")
+data_file.list <- read_10XGenomics_data(sample.list = paste0(pop.of.interest, cellranger.folder))
 object.data <-Read10X(data_file.list)
-cmp.object<- CreateSeuratObject(counts = object.data, min.cells = 3, min.genes = 200, project = "10X")
+sc.object<- CreateSeuratObject(counts = object.data, min.cells = 3, min.genes = 200, project = "10X")
 ```
 
 
-Remove non-biomark genes from cmp.object
+Keep only genes in both objects
 
 ```{r}
-biomark.genes <- rownames(biomark@assays$RNA@data)
-cmp.object <- subset(cmp.object, features = biomark.genes)
-cmp.object@meta.data["wid"] <- '10X'
-cmp.object@meta.data["pid"] <- "p14"
-setdiff(rownames(biomark@assays$RNA@data), rownames(cmp.object@assays$RNA@data))
+shared.features <- intersect(rownames(biomark.object@assays$RNA@data), rownames(sc.object@assays$RNA@data))
+sc.object <- subset(sc.object, features = shared.features)
+biomark.object <- subset(biomark.object, features = shared.features)
+sc.object@meta.data["wid"] <- '10X'
+sc.object@meta.data["pid"] <- "p14"
+
+# Check that there's a clean overlap
+setdiff(rownames(biomark.object@assays$RNA@data), rownames(sc.object@assays$RNA@data))
 ```
 
 Clean up to free memory
@@ -145,9 +155,9 @@ remove(object.data, biomark.data, biomark.meta)
 
 ## merge objects
 ```{r}
-seurat.object <- merge(cmp.object, biomark, project = 'mergebiomark')
-seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == 'CMPm2'] <- '10X'
-seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == 'CMP'] <- 'Biomark'
+seurat.object <- merge(sc.object, biomark.object, project = 'mergebiomark')
+seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- '10X'
+seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == pop.of.interest] <- 'Biomark'
 # seurat.object@meta.data[is.na(seurat.object@meta.data)] <- 0
 # seurat.object@meta.data$orig.ident <- factor(seurat.object@meta.data$orig.ident)
 # seurat.object@meta.data$pid <- factor(seurat.object@meta.data$pid)
@@ -215,7 +225,7 @@ https://satijalab.org/seurat/articles/integration_introduction.html
 
 
 ```{r}
-tech.list <- c(cmp.object, biomark)
+tech.list <- c(sc.object, biomark.object)
 tech.list <- lapply(X = tech.list, FUN = function(x) {
 	x <- NormalizeData(x)
 	x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 10)
@@ -230,6 +240,7 @@ tech.anchors <- FindIntegrationAnchors(object.list = tech.list, anchor.features 
 # tech.integrated <- IntegrateData(anchorset = tech.anchors, dims = 1:30, k.weight = 20, normalization.method = "SCT")
 tech.integrated <- IntegrateData(anchorset = tech.anchors, k.weight = 5)
 ```
+
 ## tech.integrated PCA
 
 ```{r}
@@ -269,7 +280,7 @@ tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
 tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
 tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims)
 ```
-Plot UMAP
+find clusters
 
 ```{r}
 for(x in c(0.5, 1, 1.5)){
@@ -513,11 +524,6 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 	}
 }
 ```
-
-```{r}
-saveRDS(tech.integrated, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
-```
-
 ### Evaluate cluster stability
 ```{r fig.height=5}
 clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_stability") + 
@@ -527,6 +533,84 @@ clustree(tech.integrated, prefix = "integrated_snn_res.", node_colour = "sc3_sta
 	scale_color_continuous(low = 'red3', high = 'white')
 dev.off()
 ```
+
+
+# Pick set of conditions to investigate further
+Now that have checked multiple pct.vars and object.res's, pick the favourite combination and do more detailed characerization of the. This includes:
+* Stats on each cluster
+* Find markers
+* Export lists for GSEA
+
+
+## Reload object 
+```{r}
+tech.integrated <- readRDS(paste0(projectName, "_pctVar", fav.var, ".RDS"))
+tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res", object.res))
+```
+
+
+for each resolution, number/percentage of cells in each cluster?
+
+```{r}
+tot.cells <- nrow(tech.integrated@meta.data)
+for (meta.col in colnames(tech.integrated@meta.data)){
+	if(grepl(pattern = ("integrated_snn_res"), x = meta.col)==TRUE){
+		new.clusters <- sort(as.numeric(levels(tech.integrated@meta.data[[meta.col]])))
+		stats.df <- data.frame(matrix(ncol = 2, nrow = length(new.clusters)))
+		colnames(stats.df) <- c("num_cells", "pct_pop")
+		rownames(stats.df) <- new.clusters
+		meta.df <- tech.integrated@meta.data
+		for(row.id in rownames(stats.df)){
+			num.x <- nrow(meta.df[meta.df[meta.col] == row.id,])
+			pct.x <- as.integer(num.x / tot.cells *100)
+			# print(pct.x)
+			stats.df[row.id, "num_cells"] <- num.x
+			stats.df[row.id, "pct_pop"] <- pct.x
+		}
+		print(stats.df)
+	}
+}
+```
+```{r}
+tech.integrated <- readRDS("")
+```
+
+
+```{r}
+current_res <- 'integrated_snn_res.0.5'
+tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- "10X"
+tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest)] <- "biomark"
+tech.integrated@meta.data$orig.ident <- factor(tech.integrated@meta.data$orig.ident)
+
+
+cluster_ids <- sort(unique(tech.integrated@meta.data[,current_res]))
+counts_df <- data.frame(matrix(nrow = length(cluster_ids), ncol = 4))
+rownames(counts_df) <- cluster_ids
+colnames(counts_df) <- c("10X", "biomark", "pct10X", "pctbiomark")
+tot.10X <- nrow(tech.integrated@meta.data[tech.integrated@meta.data$orig.ident == "10X", ])
+tot.biomark <- nrow(tech.integrated@meta.data[tech.integrated@meta.data$orig.ident == "biomark", ])
+for(id in cluster_ids){
+	cell_value <- nrow(tech.integrated@meta.data[(tech.integrated@meta.data[current_res] == id) & 
+																							 	(tech.integrated@meta.data$orig.ident == "10X"),])
+	counts_df[id, "10X"] = cell_value
+	counts_df[id, "pct10X"] = round(cell_value/tot.10X*100, 2)
+	cell_value <- nrow(tech.integrated@meta.data[(tech.integrated@meta.data[current_res] == id) & 
+																							 	(tech.integrated@meta.data$orig.ident == "biomark"),])
+	counts_df[id, "biomark"] = cell_value
+	counts_df[id, "pctbiomark"] = round(cell_value/tot.biomark*100, 2)
+}
+try(xlsx::write.xlsx(x = counts_df, 
+								 file = paste0(projectName, " pctVar", pct.var, "_stats.xlsx"), 
+								 sheetName = "cluster_stats", 
+								 col.names = TRUE, 
+								 row.names = TRUE, 
+								 append = TRUE)
+)
+counts_df
+```
+
+
+
 
 
 
@@ -548,6 +632,8 @@ for(tested.ident in ident.list){
 
 ## Map HGNC symbols
 ```{r}
+tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res", object.res))
+object.res.allmarkers <- FindAllMarkers(tech.integrated)
 Mouse2HumanTable <- Mouse2Human(object.res.allmarkers$gene)
 
 HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(object.res.allmarkers$gene, Mouse2HumanTable$MGI)])
@@ -567,8 +653,8 @@ for(cluster in unique(sig.res$cluster)){
 	print(paste("writing cluster", cluster))
 	new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
 	new.table <- new.table[order(-new.table$avg_log2FC), ]
-	try(dir.create(paste0("RankList_res", object.res, "_findAll_hgnc/"), showWarnings = FALSE))
-	try(write.table(new.table, file = paste0(projectName, "RankList_pctVar", pct.var, "res", object.res, "_findAll_hgnc/res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", ))
+	try(dir.create(paste0("RankList_pctVar", pct.var, "res", object.res, "_findAll_hgnc/"), showWarnings = FALSE))
+	try(write.table(new.table, file = paste0("RankList_pctVar", pct.var, "res", object.res, "_findAll_hgnc/", projectName, "pctVar", pct.var, "res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", ))
 	
 }
 ```
