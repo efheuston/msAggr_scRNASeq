@@ -6,7 +6,9 @@ output:
 ---
 
 # Updates
-
+## 20211011
+Have successfully co-clustered LSK, CMP, and MEP scCells with respective biomark populations. Now have to determine if the fluorophore data supports this.  
+Will load the fluorophore data in as metadata, and try to plot the fluor metadata based on the sc/biomark clusters. not sure if the NAs in sc will be a problem, but can subset to the biomark object and try that way.
 
 ## 20211007
 Gonna crank through LSK and MEP, then go back to the fluorophore data
@@ -573,6 +575,8 @@ for(id in cluster_ids){
 	counts_df[id, "biomark"] = cell_value
 	counts_df[id, "pctbiomark"] = round(cell_value/tot.biomark*100, 2)
 }
+```
+```{r}
 try(xlsx::write.xlsx(x = counts_df, 
 								 file = paste0(projectName, " pctVar", pct.var, "_stats.xlsx"), 
 								 sheetName = "cluster_stats", 
@@ -595,12 +599,13 @@ ident.list <- c(paste0("integrated_snn_res", object.res))
 for(tested.ident in ident.list){
 	Idents(tech.integrated) <- tested.ident
 	all.markers <- FindAllMarkers(tech.integrated)
-	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
+	try(xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
 									 file = paste0(projectName, " pctVar", pct.var, "_allres.xlsx"), 
 									 sheetName = tested.ident, 
 									 col.names = TRUE, 
 									 row.names = FALSE, 
 									 append = TRUE)
+			)
 }
 ```
 
@@ -627,6 +632,66 @@ for(cluster in unique(sig.res$cluster)){
 	try(write.table(new.table, file = paste0("RankList_findAll_hgnc/", projectName, "pctVar", pct.var, "res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", ))
 	
 }
+```
+
+# Merge index sorting data
+
+## load object
+```{r}
+tech.integrated <- readRDS(paste0(projectName, "_pctVar", fav.var, ".RDS"))
+tech.integrated <- SetIdent(tech.integrated, value = "integrated_snn_res.0.5")
+tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- "10X"
+tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest)] <- "biomark"
+tech.integrated@meta.data$orig.ident <- factor(tech.integrated@meta.data$orig.ident)
+```
+
+## load index sort data
+```{r}
+mfi <- read.csv(file = paste0(pop.of.interest, "_mfi_unNormalized.txt"), sep = "\t", row.names = 1, skipNul = TRUE)
+head(mfi)
+```
+
+sort_dict = {'010319':['p1', 'p3'], '121218': ['p2', 'p4'], '020119': ['p6', 'p7'], '090618': ['p12', 'p13']}
+normalize based on sort data  
+Plot to check distribution
+```{r}
+for(colname in colnames(mfi[,grepl("pos$", names(mfi))])){
+	h <- hist(mfi[, colname], plot = FALSE) 
+	h$density = h$counts/sum(h$counts)*100
+	plot(h,freq=FALSE, main = colname, xlab = "mfi", ylab = "% Cells")
+	}
+```
+So some distributions are gaussian, and some are poisson. Best bet is probaby just to normalize everyone.  
+> Min-max normalization: guarantees the same scale, but is thrown by outliers  
+> Z score normalization: does not guarantee the same scale, but handles outliers better  
+
+Flow is full of outliers. Going to z-score normalize
+
+```{r}
+fluor.cols <- names(mfi[, grepl("pos$", names(mfi))])
+mfi.norm <- data.frame(matrix(nrow = 0, ncol = length(fluor.cols)))
+colnames(mfi.norm) <- fluor.cols
+for(sortdate in unique(mfi$sortdate)){
+	mfi.subset <- scale(mfi[mfi$sortdate == sortdate, fluor.cols])
+	mfi.norm <- rbind(mfi.norm, mfi.subset)
+}
+mfi.norm["pid"] <- do.call(rbind, strsplit(rownames(mfi.norm), '_'))[,3]
+```
+Add metadata column
+```{r}
+tech.integrated <- AddMetaData(tech.integrated, metadata = mfi.norm)
+```
+now plot some stuff
+```{r}
+biomark.integrated <- subset(tech.integrated, subset = orig.ident == "biomark")
+```
+```{r fig.height=12, fig.width=5}
+RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
+```
+```{r}
+png(filename = paste0(projectName, " pctVar", fav.var, "res.", object.res, "-fluor.png"), height = 2400, width = 800)
+RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
+dev.off()
 ```
 
 
