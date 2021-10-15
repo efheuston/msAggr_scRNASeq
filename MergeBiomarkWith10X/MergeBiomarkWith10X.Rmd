@@ -6,6 +6,9 @@ output:
 ---
 
 # Updates
+## 20211014
+Newest idea (C/O Dave) is to take the 10X cells from tech.integrated (the merged Biomark/SingeCell object) and find them on the sc.object. Then add the metadata from  `tech.integrated@metadata$integrated_snn_res`. Running `FindMarkers()` on this parameter might help define population types *without* being biased by the biomark probes.  
+
 ## 20211011
 Have successfully co-clustered LSK, CMP, and MEP scCells with respective biomark populations. Now have to determine if the fluorophore data supports this.  
 Will load the fluorophore data in as metadata, and try to plot the fluor metadata based on the sc/biomark clusters. not sure if the NAs in sc will be a problem, but can subset to the biomark object and try that way.
@@ -32,12 +35,14 @@ library(clustree)
 
 ## Set global variables
 ```{r}
-pop.of.interest <- "LSK"
+pop.of.interest <- "CMP"
 cellranger.folder <- "m2"
-fav.var <- 95
-object.res <- ".0.5"
+integrated.var <- 95
+integrated.res <- ".0.5"
 ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
 projectName <- paste0("MergeBiomarkWith10X_", pop.of.interest)
+sc.pop.var <- 90
+sc.pop.res <- ".0.5"
 ```
 source code
 ```{r}
@@ -53,7 +58,7 @@ sessionInfo()
 sink()
 ```
 
-# Create seurat object
+# Create seurat objects
 
 ## Load biomark data
 Try to read in Biomark Data
@@ -72,7 +77,7 @@ colnames(biomark.data)[colnames(biomark.data) == 'Cd117'] <- 'Kit'
 colnames(biomark.data)[colnames(biomark.data) == 'Cd123'] <- 'Il3ra'
 colnames(biomark.data)[colnames(biomark.data) == 'H2.Aa'] <- 'H2-Aa'
 colnames(biomark.data)[colnames(biomark.data) == 'H2.Ab1'] <- 'H2-Ab1'
-biomark.data <- subset(biomark.data, select = -Kng2)
+if("Kng2" %in% biomark.data){biomark.data <- subset(biomark.data, select = -Kng2)}
 ```
 Convert to pseudoexpression data
 ```{r}
@@ -140,13 +145,13 @@ Keep only genes in both objects
 
 ```{r}
 shared.features <- intersect(rownames(biomark.object@assays$RNA@data), rownames(sc.object@assays$RNA@data))
-sc.object <- subset(sc.object, features = shared.features)
+sc.subset <- subset(sc.object, features = shared.features)
 biomark.object <- subset(biomark.object, features = shared.features)
-sc.object@meta.data["wid"] <- '10X'
-sc.object@meta.data["pid"] <- "p14"
+sc.subset@meta.data["wid"] <- '10X'
+sc.subset@meta.data["pid"] <- "p14"
 
 # Check that there's a clean overlap
-setdiff(rownames(biomark.object@assays$RNA@data), rownames(sc.object@assays$RNA@data))
+setdiff(rownames(biomark.object@assays$RNA@data), rownames(sc.subset@assays$RNA@data))
 ```
 
 Clean up to free memory
@@ -157,54 +162,54 @@ remove(object.data, biomark.data, biomark.meta)
 
 ## merge objects
 ```{r}
-seurat.object <- merge(sc.object, biomark.object, project = 'mergebiomark')
-seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- '10X'
-seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == pop.of.interest] <- 'biomark'
-# seurat.object@meta.data[is.na(seurat.object@meta.data)] <- 0
-# seurat.object@meta.data$orig.ident <- factor(seurat.object@meta.data$orig.ident)
-# seurat.object@meta.data$pid <- factor(seurat.object@meta.data$pid)
-# seurat.object@meta.data$wid <- factor(seurat.object@meta.data$wid)
-seurat.object
+merged.object <- merge(sc.subset, biomark.object, project = 'mergebiomark')
+merged.object@meta.data$orig.ident[merged.object@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- '10X'
+merged.object@meta.data$orig.ident[merged.object@meta.data$orig.ident == pop.of.interest] <- 'biomark'
+# merged.object@meta.data[is.na(merged.object@meta.data)] <- 0
+# merged.object@meta.data$orig.ident <- factor(merged.object@meta.data$orig.ident)
+# merged.object@meta.data$pid <- factor(merged.object@meta.data$pid)
+# merged.object@meta.data$wid <- factor(merged.object@meta.data$wid)
+merged.object
 ```
 
 # Traditional normalize and scaling approaches
 trying sctransform and normalizeData/scaledata
 ```{r}
-# seurat.object <- SCTransform(seurat.object, vars.to.regress = c("wid"))
-seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
-seurat.object <- FindVariableFeatures(seurat.object, selection.method = "vst", nfeatures = 10)
+# merged.object <- SCTransform(merged.object, vars.to.regress = c("wid"))
+merged.object <- NormalizeData(merged.object, normalization.method = "LogNormalize", scale.factor = 10000)
+merged.object <- FindVariableFeatures(merged.object, selection.method = "vst", nfeatures = 10)
 ```
 
 Scale data (linear transformation)
 
 ```{r}
-all.genes <- rownames(seurat.object)
-seurat.object <- ScaleData(seurat.object, features = all.genes, vars.to.regress = c("wid", "pid", "orig.ident"))
+all.genes <- rownames(merged.object)
+merged.object <- ScaleData(merged.object, features = all.genes, vars.to.regress = c("wid", "pid", "orig.ident"))
 ```
 
 ### Save merged object
 ```{r}
-# saveRDS(seurat.object, file = paste0(projectName, "_raw.RDS"))
+# saveRDS(merged.object, file = paste0(projectName, "_raw.RDS"))
 ```
 ## Run PCA
 ```{r}
-seurat.object <- RunPCA(seurat.object, ndims.print = 1:5, nfeatures.print = 5, features = all.genes)
+merged.object <- RunPCA(merged.object, ndims.print = 1:5, nfeatures.print = 5, features = all.genes)
 ```
 
 
 ```{r}
-DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
+DimPlot(merged.object, reduction = "pca", group.by = "orig.ident")
 ```
 
 ```{r}
-VizDimLoadings(seurat.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
+VizDimLoadings(merged.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
 
 ```
 
 Calculate dimensionality
 ```{r, figures-side, fig.show='hold', out.width="50%"}
-ElbowPlot(seurat.object, ndims = 50)
-percent.variance(seurat.object@reductions$pca@stdev)
+ElbowPlot(merged.object, ndims = 50)
+percent.variance(merged.object@reductions$pca@stdev)
 ```
 
 
@@ -212,7 +217,7 @@ percent.variance(seurat.object@reductions$pca@stdev)
 
 ## Calculate percent variance
 ```{r}
-tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+tot.var <- percent.variance(merged.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
 paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
 paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
@@ -227,7 +232,7 @@ https://satijalab.org/seurat/articles/integration_introduction.html
 
 
 ```{r}
-tech.list <- c(sc.object, biomark.object)
+tech.list <- c(sc.subset, biomark.object)
 tech.list <- lapply(X = tech.list, FUN = function(x) {
 	x <- NormalizeData(x)
 	x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 10)
@@ -540,7 +545,7 @@ saveRDS(tech.integrated, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
 
 
 # Pick set of conditions to investigate further
-Now that have checked multiple pct.vars and object.res's, pick the favourite combination and do more detailed characerization of the. This includes:
+Now that have checked multiple pct.vars and integrated.res's, pick the favourite combination and do more detailed characerization of the. This includes:
 * Stats on each cluster
 * Find markers
 * Export lists for GSEA
@@ -548,8 +553,8 @@ Now that have checked multiple pct.vars and object.res's, pick the favourite com
 
 ## Reload object 
 ```{r}
-tech.integrated <- readRDS(paste0(projectName, "_pctVar", fav.var, ".RDS"))
-tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res", object.res))
+tech.integrated <- readRDS(paste0(projectName, "_pctVar", integrated.var, ".RDS"))
+tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res", integrated.res))
 ```
 for each resolution, number/percentage of cells in each cluster?
 ```{r}
@@ -594,7 +599,7 @@ counts_df
 
 ## Create `FindAllMarkers()` lists for GSEA
 ```{r}
-ident.list <- c(paste0("integrated_snn_res", object.res))
+ident.list <- c(paste0("integrated_snn_res", integrated.res))
 
 for(tested.ident in ident.list){
 	Idents(tech.integrated) <- tested.ident
@@ -611,15 +616,15 @@ for(tested.ident in ident.list){
 
 ## Map HGNC symbols
 ```{r}
-tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res", object.res))
-object.res.allmarkers <- FindAllMarkers(tech.integrated)
-Mouse2HumanTable <- Mouse2Human(object.res.allmarkers$gene)
+tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res", integrated.res))
+integrated.res.allmarkers <- FindAllMarkers(tech.integrated)
+Mouse2HumanTable <- Mouse2Human(integrated.res.allmarkers$gene)
 
-HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(object.res.allmarkers$gene, Mouse2HumanTable$MGI)])
-head(object.res.allmarkers)
-object.res.allmarkers$HGNC <- HGNC
-# tail(object.res.allmarkers)
-sig.res <- object.res.allmarkers[object.res.allmarkers$p_val_adj <= 0.05, ]
+HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(integrated.res.allmarkers$gene, Mouse2HumanTable$MGI)])
+head(integrated.res.allmarkers)
+integrated.res.allmarkers$HGNC <- HGNC
+# tail(integrated.res.allmarkers)
+sig.res <- integrated.res.allmarkers[integrated.res.allmarkers$p_val_adj <= 0.05, ]
 sig.res <- sig.res[c("avg_log2FC", "HGNC", "cluster")]
 sig.res <- sig.res[!(sig.res$HGNC == "" | is.na(sig.res$HGNC)),] # GSEA will fail if there are any blanks or NAs in the table
 sig.res <- sig.res[]
@@ -629,7 +634,7 @@ for(cluster in unique(sig.res$cluster)){
 	new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
 	new.table <- new.table[order(-new.table$avg_log2FC), ]
 	try(dir.create(paste0("RankList_findAll_hgnc/"), showWarnings = FALSE))
-	try(write.table(new.table, file = paste0("RankList_findAll_hgnc/", projectName, "pctVar", pct.var, "res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", ))
+	try(write.table(new.table, file = paste0("RankList_findAll_hgnc/", projectName, "pctVar", pct.var, "res", integrated.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", ))
 	
 }
 ```
@@ -638,7 +643,7 @@ for(cluster in unique(sig.res$cluster)){
 
 ## load object
 ```{r}
-tech.integrated <- readRDS(paste0(projectName, "_pctVar", fav.var, ".RDS"))
+tech.integrated <- readRDS(paste0(projectName, "_pctVar", integrated.var, ".RDS"))
 tech.integrated <- SetIdent(tech.integrated, value = "integrated_snn_res.0.5")
 tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- "10X"
 tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest)] <- "biomark"
@@ -689,10 +694,111 @@ biomark.integrated <- subset(tech.integrated, subset = orig.ident == "biomark")
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 ```
 ```{r}
-png(filename = paste0(projectName, " pctVar", fav.var, "res.", object.res, "-fluor.png"), height = 2400, width = 800)
+png(filename = paste0(projectName, " pctVar", integrated.var, "res.", integrated.res, "-fluor.png"), height = 2400, width = 800)
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 dev.off()
 ```
+
+# Add tech.integrated cluster IDs to sc.object
+## Load analyzed sc.object from Indivdual_SubpopAnalysis
+Use previously determined optimal percent variance to describe (`sc.pop.var`) and resolution (`sc.pop.res`) from notebook "Individual_SubpopAnalysis" and clustree. Will increase resolution if can get improved coverage of integrated_snn clusters
+```{r}
+seurat.object <- readRDS(paste0("/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/IndividualPops/", pop.of.interest, "Subpop_pctVar", sc.pop.var, ".RDS"))
+seurat.object
+```
+Get cluster IDs from merged SC and Biomark seurat object (tech.integrated) and add them back to the original sc.object.
+```{r}
+seurat.object <- AddMetaData(seurat.object, metadata = tech.integrated@meta.data[, ident.list])
+```
+Find the percent of integrated_snn_res.X cells for each RNA_snn_res.in the seurat.object
+Test: what percentage of each new clusterID matches one of the older clusters?
+
+```{r}
+test.col.pattern <- "integrated_snn_res"
+target.col.pattern <- "RNA_snn_res"
+xlsx_filename <- paste0(projectName, "_pctVar", pct.var, "_mergedEnrichmentStats.xlsx")
+
+metadata_overlap_stats(seurat.object = seurat.object, 
+											 target.col.pattern = target.col.pattern, 
+											 test.col.pattern = test.col.pattern, 
+											 print_to_screen = TRUE,
+											 xlsx_filename = xlsx_filename)
+```
+
+
+```{r}
+for(test.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = test.col.pattern, x = test.col) == TRUE){
+		test.col.id <- levels(seurat.object@meta.data[, test.col])
+		for(target.col in colnames(seurat.object@meta.data)){
+			if(grepl(pattern = target.col.pattern, x = target.col) == TRUE){
+				target.col.id <- levels(seurat.object@meta.data[, target.col])
+				enrich.df <- data.frame(matrix(nrow = length(target.col.id), ncol = length(test.col.id)))
+				rownames(enrich.df) <- target.col.id
+				colnames(enrich.df) <- test.col.id
+				seurat.meta.df <- seurat.object@meta.data
+				print(test.col)
+				for(col.id in colnames(enrich.df)){
+					tot.test.cells <- nrow(seurat.meta.df[seurat.meta.df[[test.col]] == col.id,])
+					for(row.id in rownames(enrich.df)){
+						num.x <- nrow(seurat.meta.df[seurat.meta.df[[target.col]] == row.id & seurat.meta.df[[test.col]] == col.id,])
+						pct.x <- as.integer(num.x / tot.test.cells*100)
+						enrich.df[row.id, col.id] <- num.x
+					}
+				}
+				if(!sum(rowSums(enrich.df)) == nrow(seurat.object@meta.data)){print("error! Not all cells have been assigned to a category!")}
+				colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0(test.col.pattern, "_", x))
+				rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0(target.col.pattern, "_", x))
+				print(enrich.df)
+			}
+		}
+	}
+}
+```
+
+```{r}
+for(test.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = test.col.pattern, x = test.col)){
+		test.col.id <- sort(as.numeric(levels(seurat.object@meta.data[[test.col]])))
+		for (target.col in colnames(seurat.object@meta.data)){
+			if(grepl(pattern = target.col.pattern, x = target.col)){
+				match.col.id <- sort(as.numeric(levels(seurat.object@meta.data[[target.col]])))}
+				enrich.df <- data.frame(matrix(ncol = length(test.col.id), nrow = length(match.col.id)))
+				colnames(enrich.df) <- test.col.id
+				rownames(enrich.df) <- match.col.id
+				meta.df <- seurat.object@meta.data
+				for(row.id in rownames(enrich.df)){
+					tot.clus <- nrow(meta.df[meta.df[[target.col]] == row.id,])
+					for(col.id in colnames(enrich.df)){
+						num.x <- nrow(meta.df[(meta.df[[target.col]] == row.id) & (meta.df$clust.ID == col.id),])
+						pct.x <- as.integer(num.x / tot.clus *100)
+						# print(pct.x)
+						enrich.df[row.id, col.id] <- pct.x
+					}
+				}
+				colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0(test.col.pattern, "_", x))
+				rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0(target.col.pattern, "_", x))
+				print(sum(enrich.df))
+				
+				if(!is.null(xlsx_filename)){
+					xlsx::write.xlsx(enrich.df, file = xlsx_filename, append = TRUE)}
+			
+		}
+	}
+}
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
