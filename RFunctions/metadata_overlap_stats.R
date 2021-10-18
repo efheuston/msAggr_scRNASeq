@@ -22,21 +22,26 @@ metadata_overlap_stats <- function(seurat.object, target.col.pattern, test.col.p
 				if(grepl(pattern = target.col.pattern, x = target.col) == TRUE){
 					print(paste("Comparing", test.col, "and", target.col))
 					target.col.id <- levels(seurat.object@meta.data[, target.col])
-					enrich.df <- data.frame(matrix(nrow = length(target.col.id), ncol = length(test.col.id)))
-					rownames(enrich.df) <- target.col.id
-					colnames(enrich.df) <- test.col.id
+					enrich.df <- data.frame(matrix(nrow = length(target.col.id) + 1, ncol = length(test.col.id) + 1))
+					rownames(enrich.df) <- c(target.col.id, "tot_cells_in_test_cluster")
+					colnames(enrich.df) <- c(test.col.id, "tot_cells_in_target_cluster")
 					seurat.meta.df <- seurat.object@meta.data
 					for(col.id in colnames(enrich.df)){
 						tot.test.cells <- nrow(seurat.meta.df[seurat.meta.df[[test.col]] == col.id,])
 						for(row.id in rownames(enrich.df)){
+							tot.target.cells <- nrow(seurat.meta.df[seurat.meta.df[[target.col]] == row.id, ])
 							num.x <- nrow(seurat.meta.df[seurat.meta.df[[target.col]] == row.id & seurat.meta.df[[test.col]] == col.id,])
 							pct.x <- as.integer((num.x / tot.test.cells)*100)
 							enrich.df[row.id, col.id] <- pct.x
+							enrich.df[row.id, "tot_cells_in_target_cluster"] <- tot.target.cells
+							enrich.df["tot_cells_in_test_cluster", col.id] <- tot.test.cells
 						}
 					}
 					# if(!sum(rowSums(enrich.df)) == nrow(seurat.object@meta.data)){print("error! Not all cells have been assigned to a category!")}
-					colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0(test.col, "_", x))
-					rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0(target.col, "_", x))
+					colnames(enrich.df)[1:ncol(enrich.df) - 1] <- sapply(colnames(enrich.df)[1:ncol(enrich.df) - 1], function(x) paste0(test.col, "_", x))
+					# print(length(rownames(enrich.df)))
+					# print(length(sapply(rownames(enrich.df)[1:nrow(enrich.df) - 1], function(x) paste0(target.col, "_", x))))
+					rownames(enrich.df)[1:nrow(enrich.df) - 1] <- sapply(rownames(enrich.df)[1:nrow(enrich.df) - 1], function(x) paste0(target.col, "_", x))
 					if(print_to_screen == TRUE){
 						print(enrich.df)
 					}					
