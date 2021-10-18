@@ -20,7 +20,7 @@ Gonna crank through LSK and MEP, then go back to the fluorophore data
 Compared to archive 1, this version imports Biomark Ct spreadsheets that do not include fluorophore data 
 
 # Setup
-```{r setup, include=FALSE}
+```{r setup}
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/MergeBiomarkWith10X/")
 ```
 
@@ -39,10 +39,11 @@ pop.of.interest <- "CMP"
 cellranger.folder <- "m2"
 integrated.var <- 95
 integrated.res <- ".0.5"
-ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
+integrated.ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
 projectName <- paste0("MergeBiomarkWith10X_", pop.of.interest)
 sc.pop.var <- 90
 sc.pop.res <- ".0.5"
+sc.ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1", "RNA_snn_res.1.5", "RNA_snn_res.2")
 ```
 source code
 ```{r}
@@ -302,9 +303,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											reduction = "umap", 
 											pt.size = 1,
 											cols = color.palette) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
 		plot(myplot)
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		myplot <- DimPlot(tech.integrated, 
@@ -313,9 +314,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											pt.size = 1,
 											cols = color.palette) + 
 			facet_wrap(meta.col) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
 		
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		
@@ -372,9 +373,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											reduction = "umap", 
 											pt.size = 1,
 											cols = color.palette) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
 		plot(myplot)
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		myplot <- DimPlot(tech.integrated, 
@@ -383,9 +384,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											pt.size = 1,
 											cols = color.palette) + 
 			facet_wrap(meta.col) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
 		
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		
@@ -441,9 +442,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											reduction = "umap", 
 											pt.size = 1,
 											cols = color.palette) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
 		plot(myplot)
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		myplot <- DimPlot(tech.integrated, 
@@ -452,9 +453,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											pt.size = 1,
 											cols = color.palette) + 
 			facet_wrap(meta.col) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
 		
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		
@@ -510,9 +511,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											reduction = "umap", 
 											pt.size = 1,
 											cols = color.palette) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col) ))
 		plot(myplot)
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		myplot <- DimPlot(tech.integrated, 
@@ -521,9 +522,9 @@ for (meta.col in colnames(tech.integrated@meta.data)){
 											pt.size = 1,
 											cols = color.palette) + 
 			facet_wrap(meta.col) + 
-			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col)))
 		
-		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "_pctVar", pct.var, "res.", gsub("integrated_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		
@@ -583,7 +584,7 @@ for(id in cluster_ids){
 ```
 ```{r}
 try(xlsx::write.xlsx(x = counts_df, 
-								 file = paste0(projectName, " pctVar", pct.var, "_stats.xlsx"), 
+								 file = paste0(projectName, "_pctVar", pct.var, "_stats.xlsx"), 
 								 sheetName = "cluster_stats", 
 								 col.names = TRUE, 
 								 row.names = TRUE, 
@@ -599,13 +600,13 @@ counts_df
 
 ## Create `FindAllMarkers()` lists for GSEA
 ```{r}
-ident.list <- c(paste0("integrated_snn_res", integrated.res))
+integrated.ident.list <- c(paste0("integrated_snn_res", integrated.res))
 
-for(tested.ident in ident.list){
+for(tested.ident in integrated.ident.list){
 	Idents(tech.integrated) <- tested.ident
 	all.markers <- FindAllMarkers(tech.integrated)
 	try(xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
-									 file = paste0(projectName, " pctVar", pct.var, "_allres.xlsx"), 
+									 file = paste0(projectName, "_pctVar", pct.var, "_allres.xlsx"), 
 									 sheetName = tested.ident, 
 									 col.names = TRUE, 
 									 row.names = FALSE, 
@@ -694,7 +695,7 @@ biomark.integrated <- subset(tech.integrated, subset = orig.ident == "biomark")
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 ```
 ```{r}
-png(filename = paste0(projectName, " pctVar", integrated.var, "res.", integrated.res, "-fluor.png"), height = 2400, width = 800)
+png(filename = paste0(projectName, "_pctVar", integrated.var, "res.", integrated.res, "-fluor.png"), height = 2400, width = 800)
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 dev.off()
 ```
@@ -708,7 +709,7 @@ seurat.object
 ```
 Get cluster IDs from merged SC and Biomark seurat object (tech.integrated) and add them back to the original sc.object.
 ```{r}
-seurat.object <- AddMetaData(seurat.object, metadata = tech.integrated@meta.data[, ident.list])
+seurat.object <- AddMetaData(seurat.object, metadata = tech.integrated@meta.data[, integrated.ident.list])
 ```
 Find the percent of integrated_snn_res.X cells for each RNA_snn_res.in the seurat.object
 Test: what percentage of each new clusterID matches one of the older clusters?
@@ -725,70 +726,31 @@ metadata_overlap_stats(seurat.object = seurat.object,
 											 xlsx_filename = xlsx_filename)
 ```
 
-
+plot overlays
 ```{r}
-for(test.col in colnames(seurat.object@meta.data)){
-	if(grepl(pattern = test.col.pattern, x = test.col) == TRUE){
-		test.col.id <- levels(seurat.object@meta.data[, test.col])
-		for(target.col in colnames(seurat.object@meta.data)){
-			if(grepl(pattern = target.col.pattern, x = target.col) == TRUE){
-				target.col.id <- levels(seurat.object@meta.data[, target.col])
-				enrich.df <- data.frame(matrix(nrow = length(target.col.id), ncol = length(test.col.id)))
-				rownames(enrich.df) <- target.col.id
-				colnames(enrich.df) <- test.col.id
-				seurat.meta.df <- seurat.object@meta.data
-				print(test.col)
-				for(col.id in colnames(enrich.df)){
-					tot.test.cells <- nrow(seurat.meta.df[seurat.meta.df[[test.col]] == col.id,])
-					for(row.id in rownames(enrich.df)){
-						num.x <- nrow(seurat.meta.df[seurat.meta.df[[target.col]] == row.id & seurat.meta.df[[test.col]] == col.id,])
-						pct.x <- as.integer(num.x / tot.test.cells*100)
-						enrich.df[row.id, col.id] <- num.x
-					}
-				}
-				if(!sum(rowSums(enrich.df)) == nrow(seurat.object@meta.data)){print("error! Not all cells have been assigned to a category!")}
-				colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0(test.col.pattern, "_", x))
-				rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0(target.col.pattern, "_", x))
-				print(enrich.df)
-			}
-		}
+for(integrated.col in integrated.ident.list){
+	for(sc.col in sc.ident.list){
+		plot.title <- paste0(projectName, "_pctVar", pct.var, "-", integrated.col, " faceted by ", sc.col)
+		myplot <- DimPlot(seurat.object, 
+											group.by = integrated.col,
+											split.by = sc.col, 
+											reduction = "umap", 
+											pt.size = 1.5,
+											ncol = round(sqrt(length(levels(seurat.object@meta.data[[sc.col]])))),
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "-", integrated.col, " faceted by ", sc.col))
+		
+		png(filename = paste0(projectName, "_pctVar", pct.var, 
+													"-integratedRes.", gsub("integrated_snn_res.", "", integrated.col), 
+													"mergedEnrichment-Facet_scRes.", gsub("RNA_snn_res.", "", sc.col), 
+													".png"), 
+				height = 1600, width = 1600)
+		plot(myplot)
+		dev.off()
+
 	}
 }
 ```
-
-```{r}
-for(test.col in colnames(seurat.object@meta.data)){
-	if(grepl(pattern = test.col.pattern, x = test.col)){
-		test.col.id <- sort(as.numeric(levels(seurat.object@meta.data[[test.col]])))
-		for (target.col in colnames(seurat.object@meta.data)){
-			if(grepl(pattern = target.col.pattern, x = target.col)){
-				match.col.id <- sort(as.numeric(levels(seurat.object@meta.data[[target.col]])))}
-				enrich.df <- data.frame(matrix(ncol = length(test.col.id), nrow = length(match.col.id)))
-				colnames(enrich.df) <- test.col.id
-				rownames(enrich.df) <- match.col.id
-				meta.df <- seurat.object@meta.data
-				for(row.id in rownames(enrich.df)){
-					tot.clus <- nrow(meta.df[meta.df[[target.col]] == row.id,])
-					for(col.id in colnames(enrich.df)){
-						num.x <- nrow(meta.df[(meta.df[[target.col]] == row.id) & (meta.df$clust.ID == col.id),])
-						pct.x <- as.integer(num.x / tot.clus *100)
-						# print(pct.x)
-						enrich.df[row.id, col.id] <- pct.x
-					}
-				}
-				colnames(enrich.df) <- sapply(colnames(enrich.df), function(x) paste0(test.col.pattern, "_", x))
-				rownames(enrich.df) <- sapply(rownames(enrich.df), function(x) paste0(target.col.pattern, "_", x))
-				print(sum(enrich.df))
-				
-				if(!is.null(xlsx_filename)){
-					xlsx::write.xlsx(enrich.df, file = xlsx_filename, append = TRUE)}
-			
-		}
-	}
-}
-```
-
-
 
 
 
