@@ -28,6 +28,8 @@ library(patchwork)
 library(ggplot2)
 library(cowplot)
 library(clustree)
+# library(scatterplot3d)
+library(rgl)
 ```
 
 ## Set global variables
@@ -697,8 +699,8 @@ RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol 
 dev.off()
 ```
 plot umaps
-```{r}
 for(integrated.col in integrated.ident.list){
+```{r}
 		plot.title <- paste0(projectName, "_pctVar", pct.var, "-mergedEnrichment_OrigIdent-Facet-integratedRes.", gsub("integrated_snn_res.", "", integrated.col))
 		myplot <- DimPlot(tech.integrated, 
 											group.by = "orig.ident",
@@ -802,5 +804,40 @@ for(tested.ident in integrated.ident.list){
 
 
 
+
+
+
+# Plot 3D
+Plot in 3d
+```{r}
+tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims <- length(which(cumsum(tot.var) <= integrated.var))
+
+tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
+tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
+tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims, n.components = 3)
+```
+Plot 3D UMAP
+
+```{r}
+my_object <- tech.integrated@reductions$umap@cell.embeddings
+# color.palette @ res.0.5 has 15 levels. Change color.palette[11] to a different color so can add the biomark cells as large black dots afterwards
+color.palette[11] <- "mediumpurple1"
+par3d("windowRect" = c(122, 44, 950, 929))
+plot3d(x=my_object[,1], y=my_object[,2], z=my_object[,3], 
+			 col = color.palette[tech.integrated@active.ident], 
+			 box=FALSE, axes=FALSE, xlab = "", ylab = "", zlab = "")
+rgl.lines(c(-10, 10), c(0, 0), c(0, 0), color = "black")
+rgl.lines(c(0, 0), c(-10, 10), c(0, 0), color = "red")
+rgl.lines(c(0, 0), c(0, 0), c(-10, 10), color = "green")
+
+# biomark.embeddings <- subset(tech.integrated, subset = orig.ident == "biomark")
+# biomark.embeddings <- biomark.embeddings@reductions$umap@cell.embeddings
+# plot3d(x = biomark.embeddings[,1], y = biomark.embeddings[,2], z = biomark.embeddings[,3],
+# 			 col = "black", size = 10,
+# 			 add = TRUE)
+rgl.viewpoint(zoom = .5)
+movie3d(spin3d(axis = c(1, 1, 1), rpm = 6), duration = 10, dir = getwd(), clean = TRUE, webshot = TRUE)
+```
 
 
