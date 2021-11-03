@@ -797,8 +797,8 @@ tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE
 ndims <- length(which(cumsum(tot.var) <= 90))
 
 seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
-seurat.object <- FindClusters(seurat.object, resolution = 0.5)
-seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+# seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims, n.components = 3)
 
 ```
 
