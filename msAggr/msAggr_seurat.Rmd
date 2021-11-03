@@ -1,6 +1,13 @@
 ---
+<<<<<<< Updated upstream:msAggr/msAggr_seurat.Rmd
 title: "msAggr_seurat"
 output: html_notebook
+=======
+title: "CMP_seurat"
+output: 
+  html_notebook: 
+    fig_height: 6
+>>>>>>> Stashed changes:IndividualPops/CMPSubpop.Rmd
 ---
 
 Creating new pipeline using seurat v4.0.2 available 2021.06.23  
@@ -19,12 +26,16 @@ library(patchwork)
 library(ggplot2)
 # library(clustree)
 ```
+<<<<<<< Updated upstream:msAggr/msAggr_seurat.Rmd
 store session info
 ```{r}
 sink("msAggr_seurat-v1.20210623")
 sessionInfo()
 sink()
 ```
+=======
+
+>>>>>>> Stashed changes:IndividualPops/CMPSubpop.Rmd
 
 # A note about using SCTransform versus `ScaleData`
 https://bioconductor.org/packages/3.10/workflows/vignettes/simpleSingleCell/inst/doc/batch.html#62_for_gene-based_analyses
@@ -51,9 +62,24 @@ SET SEED?????!!!!!
 ## Set global variables
 
 ```{r}
+<<<<<<< Updated upstream:msAggr/msAggr_seurat.Rmd
 projectName <- "msAggr"
 jackstraw.dim <- 40
 ```
+=======
+projectName <- "CMPSubpop"
+jackstraw.dim <- 40
+```
+
+## Store session info
+```{r}
+sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
+sink(sessionInfo.filename)
+sessionInfo()
+sink()
+```
+
+>>>>>>> Stashed changes:IndividualPops/CMPSubpop.Rmd
 
 
 
@@ -508,6 +534,7 @@ clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") 
 	scale_color_continuous(low = 'red3', high = 'white')
 ```
 
+<<<<<<< Updated upstream:msAggr/msAggr_seurat.Rmd
 
 
 ```{r fig.height=5}
@@ -521,6 +548,15 @@ clustree(seurat.object, prefix = "RNA_snn_res.", expres = 'scale.data', node_col
 	scale_color_continuous(low = 'red3', high = 'white')
 ```
 
+=======
+```{r}
+probe.list <- read.table()
+```
+
+```{r}
+xprsn.mtx <- 
+```
+>>>>>>> Stashed changes:IndividualPops/CMPSubpop.Rmd
 
 
 ```{r fig.height=5}
@@ -571,6 +607,15 @@ saveRDS(seurat.object, file = "msAggr_AnalysisCode/msAggr_dim36.rds")
 ```
 
 
+<<<<<<< Updated upstream:msAggr/msAggr_seurat.Rmd
+=======
+## DGE w/ resolution = 0.5
+Strt with comparing all clusters against all other clusters and write out cluster info
+calculate `FindAllMarkers()` for different idents and save to new file
+```{r}
+# ident.list <- colnames(seurat.object@meta.data)[grepl("^RNA_snn", colnames(seurat.object@meta.data))]
+ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
+>>>>>>> Stashed changes:IndividualPops/CMPSubpop.Rmd
 
 # Repeat clustering with dim24
 One possibility is that I've included too many dimensions. Will see if 90% increases stability.
