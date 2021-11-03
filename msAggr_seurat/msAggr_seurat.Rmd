@@ -1,6 +1,8 @@
 ---
 title: "msAggr_seurat"
-output: html_notebook
+output:s
+  html_document:
+    df_print: paged
 ---
 
 Creating new pipeline using seurat v4.0.2 available 2021.06.23  
@@ -781,3 +783,34 @@ Cluster stability could be influenced by:
 * neighborhood analysis used wrong parameters
 * Should include mitoC filter (there's a chunk of MEP w/ mitoC @ ~40%)
 * SCTransform accounts better for sources of variability
+
+
+# Generating 3D models
+```{r}
+rds.file <- "msAggr_seurat_dim26.RDS"
+seurat.object <- readRDS(rds.file)
+ndims <- as.numeric(gsub("[^0-9]", "", stringr::str_split(rds.file, "_")[[1]][3]))
+```
+
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims <- length(which(cumsum(tot.var) <= 90))
+
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
