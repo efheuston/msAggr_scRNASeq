@@ -20,17 +20,16 @@ Gonna crank through LSK and MEP, then go back to the fluorophore data
 Compared to archive 1, this version imports Biomark Ct spreadsheets that do not include fluorophore data 
 
 # Setup
-```{r setup}
+```{r setup, message=FALSE, warning=FALSE}
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/MergeBiomarkWith10X/")
-```
-
-```{r message=FALSE, warning=FALSE}
 library(dplyr)
 library(Seurat)
 library(patchwork)
 library(ggplot2)
 library(cowplot)
 library(clustree)
+# library(scatterplot3d)
+library(rgl)
 ```
 
 ## Set global variables
@@ -43,10 +42,11 @@ integrated.ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
 projectName <- paste0("MergeBiomarkWith10X_", pop.of.interest)
 sc.pop.var <- 90
 sc.pop.res <- ".0.5"
-sc.ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1", "RNA_snn_res.1.5", "RNA_snn_res.2")
+sc.ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
 ```
 source code
 ```{r}
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/metadata_overlap_stats.R")
 source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
 source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/PercentVariance.R")
 source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/read_10XGenomics_data.R")
@@ -58,7 +58,6 @@ sink(paste0(projectName, "_sessionInfo.txt"))
 sessionInfo()
 sink()
 ```
-
 # Create seurat objects
 
 ## Load biomark data
@@ -559,38 +558,38 @@ tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res"
 ```
 for each resolution, number/percentage of cells in each cluster?
 ```{r}
-current_res <- 'integrated_snn_res.0.5'
-tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- "10X"
-tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest)] <- "biomark"
-tech.integrated@meta.data$orig.ident <- factor(tech.integrated@meta.data$orig.ident)
-
-
-cluster_ids <- sort(unique(tech.integrated@meta.data[,current_res]))
-counts_df <- data.frame(matrix(nrow = length(cluster_ids), ncol = 4))
-rownames(counts_df) <- cluster_ids
-colnames(counts_df) <- c("10X", "biomark", "pct10X", "pctbiomark")
-tot.10X <- nrow(tech.integrated@meta.data[tech.integrated@meta.data$orig.ident == "10X", ])
-tot.biomark <- nrow(tech.integrated@meta.data[tech.integrated@meta.data$orig.ident == "biomark", ])
-for(id in cluster_ids){
-	cell_value <- nrow(tech.integrated@meta.data[(tech.integrated@meta.data[current_res] == id) & 
-																							 	(tech.integrated@meta.data$orig.ident == "10X"),])
-	counts_df[id, "10X"] = cell_value
-	counts_df[id, "pct10X"] = round(cell_value/tot.10X*100, 2)
-	cell_value <- nrow(tech.integrated@meta.data[(tech.integrated@meta.data[current_res] == id) & 
-																							 	(tech.integrated@meta.data$orig.ident == "biomark"),])
-	counts_df[id, "biomark"] = cell_value
-	counts_df[id, "pctbiomark"] = round(cell_value/tot.biomark*100, 2)
+res.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
+for(current_res in res.list){
+	tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- "10X"
+	tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest)] <- "biomark"
+	tech.integrated@meta.data$orig.ident <- factor(tech.integrated@meta.data$orig.ident)
+	
+	
+	cluster_ids <- sort(unique(tech.integrated@meta.data[,current_res]))
+	counts_df <- data.frame(matrix(nrow = length(cluster_ids), ncol = 4))
+	rownames(counts_df) <- cluster_ids
+	colnames(counts_df) <- c("10X", "biomark", "pct10X", "pctbiomark")
+	tot.10X <- nrow(tech.integrated@meta.data[tech.integrated@meta.data$orig.ident == "10X", ])
+	tot.biomark <- nrow(tech.integrated@meta.data[tech.integrated@meta.data$orig.ident == "biomark", ])
+	for(id in cluster_ids){
+		cell_value <- nrow(tech.integrated@meta.data[(tech.integrated@meta.data[current_res] == id) & 
+																								 	(tech.integrated@meta.data$orig.ident == "10X"),])
+		counts_df[id, "10X"] = cell_value
+		counts_df[id, "pct10X"] = round(cell_value/tot.10X*100, 2)
+		cell_value <- nrow(tech.integrated@meta.data[(tech.integrated@meta.data[current_res] == id) & 
+																								 	(tech.integrated@meta.data$orig.ident == "biomark"),])
+		counts_df[id, "biomark"] = cell_value
+		counts_df[id, "pctbiomark"] = round(cell_value/tot.biomark*100, 2)
+	}
+	try(xlsx::write.xlsx(x = counts_df, 
+											 file = paste0(projectName, "_pctVar", pct.var, "_stats.xlsx"), 
+											 sheetName = current_res, 
+											 col.names = TRUE, 
+											 row.names = TRUE, 
+											 append = TRUE)
+	)
+	counts_df
 }
-```
-```{r}
-try(xlsx::write.xlsx(x = counts_df, 
-								 file = paste0(projectName, "_pctVar", pct.var, "_stats.xlsx"), 
-								 sheetName = "cluster_stats", 
-								 col.names = TRUE, 
-								 row.names = TRUE, 
-								 append = TRUE)
-)
-counts_df
 ```
 
 
@@ -699,6 +698,29 @@ png(filename = paste0(projectName, "_pctVar", integrated.var, "res.", integrated
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 dev.off()
 ```
+plot umaps
+for(integrated.col in integrated.ident.list){
+```{r}
+		plot.title <- paste0(projectName, "_pctVar", pct.var, "-mergedEnrichment_OrigIdent-Facet-integratedRes.", gsub("integrated_snn_res.", "", integrated.col))
+		myplot <- DimPlot(tech.integrated, 
+											group.by = "orig.ident",
+											split.by = integrated.col, 
+											reduction = "umap", 
+											pt.size = 1.5,
+											ncol = round(sqrt(length(levels(seurat.object@meta.data[[sc.col]])))),
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, "_pctVar", pct.var, "-", integrated.col, " faceted by ", sc.col))
+		plot(myplot)
+		
+		png(filename = paste0(projectName, "_pctVar", pct.var,
+													"-mergedEnrichment_OrigIdent-Facet-integratedRes.", gsub("integrated_snn_res.", "", integrated.col),
+													".png"),
+				height = 1600, width = 1600)
+		plot(myplot)
+		dev.off()
+
+}
+```
 
 # Add tech.integrated cluster IDs to sc.object
 ## Load analyzed sc.object from Indivdual_SubpopAnalysis
@@ -752,6 +774,23 @@ for(integrated.col in integrated.ident.list){
 }
 ```
 
+Save object	
+```{r}
+# saveRDS(seurat.object, file = paste0("/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/IndividualPops/", pop.of.interest, "Subpop_pctVar", sc.pop.var, ".RDS"))
+```
+# DGE
+```{r}
+for(tested.ident in integrated.ident.list){
+	Idents(seurat.object) <- tested.ident
+	all.markers <- FindAllMarkers(seurat.object)
+	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
+									 file = paste0(projectName, "_FindALLMarkers_pctVar", pct.var, "_allres.xlsx"), 
+									 sheetName = tested.ident, 
+									 col.names = TRUE, 
+									 row.names = FALSE, 
+									 append = TRUE)
+}
+```
 
 
 
@@ -762,5 +801,43 @@ for(integrated.col in integrated.ident.list){
 
 
 
+
+
+
+
+
+
+# Plot 3D
+Plot in 3d
+```{r}
+tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims <- length(which(cumsum(tot.var) <= integrated.var))
+
+tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
+tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
+tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims, n.components = 3)
+```
+Plot 3D UMAP
+
+```{r}
+my_object <- tech.integrated@reductions$umap@cell.embeddings
+# color.palette @ res.0.5 has 15 levels. Change color.palette[11] to a different color so can add the biomark cells as large black dots afterwards
+color.palette[11] <- "mediumpurple1"
+par3d("windowRect" = c(122, 44, 950, 929))
+plot3d(x=my_object[,1], y=my_object[,2], z=my_object[,3], 
+			 col = color.palette[tech.integrated@active.ident], 
+			 box=FALSE, axes=FALSE, xlab = "", ylab = "", zlab = "")
+rgl.lines(c(-10, 10), c(0, 0), c(0, 0), color = "black")
+rgl.lines(c(0, 0), c(-10, 10), c(0, 0), color = "red")
+rgl.lines(c(0, 0), c(0, 0), c(-10, 10), color = "green")
+
+# biomark.embeddings <- subset(tech.integrated, subset = orig.ident == "biomark")
+# biomark.embeddings <- biomark.embeddings@reductions$umap@cell.embeddings
+# plot3d(x = biomark.embeddings[,1], y = biomark.embeddings[,2], z = biomark.embeddings[,3],
+# 			 col = "black", size = 10,
+# 			 add = TRUE)
+rgl.viewpoint(zoom = .5)
+movie3d(spin3d(axis = c(1, 1, 1), rpm = 6), duration = 10, dir = getwd(), clean = TRUE, webshot = TRUE)
+```
 
 
