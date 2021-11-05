@@ -1,6 +1,8 @@
 ---
 title: "msAggr_seurat"
-output: html_notebook
+output:s
+  html_document:
+    df_print: paged
 ---
 
 Creating new pipeline using seurat v4.0.2 available 2021.06.23  
@@ -18,6 +20,7 @@ library(Seurat)
 library(patchwork)
 library(ggplot2)
 library(clustree)
+library(rgl)
 ```
 ## Source functions
 ```{r}
@@ -464,18 +467,30 @@ for (meta.col in colnames(seurat.object@meta.data)){
 											pt.size = 1,
 											cols = color.palette) + 
 			facet_wrap(meta.col) + 
-			ggtitle(paste0(projectName, " dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col)))
+			ggtitle(paste0(projectName, "dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col)))
 		
-		png(filename = paste0(projectName, " dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		png(filename = paste0(projectName, "dim", ndims, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
 		plot(myplot)
 		dev.off()
 		
 	}
 }
 ```
+Plot gene expression
+```{r}
+feature.list <- c("Meis1", "Gata2", "Gata1", "Irf8", "Elane", "Fli1", "Zfpm1")
+
+for(gene in feature.list){
+	png(filename = paste0(projectName, "dim", ndims, "-FeaturePlot-", gene, ".png"), height = 400, width = 400)
+	plot(FeaturePlot(seurat.object, features = gene))
+	dev.off()
+}
+
+```
 
 
 
+Save seurat.object RDS
 ```{r}
 saveRDS(seurat.object, file = paste0(projectName, "_dim", ndims, ".RDS"))
 ```
@@ -693,48 +708,42 @@ calculate `FindAllMarkers()` for different idents and save to new file
 ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
 
 for(tested.ident in ident.list){
-	Idents(seurat.object) <- tested.ident
+	ident.res <- gsub("RNA_snn_res", "", tested.ident)
+	seurat.object <- SetIdent(seurat.object, value = tested.ident)
 	all.markers <- FindAllMarkers(seurat.object)
-	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
-									 file = paste0(projectName, "_FindALLMarkers_dim",ndims, "_allres.xlsx"), 
-									 sheetName = tested.ident, 
-									 col.names = TRUE, 
-									 row.names = FALSE, 
-									 append = TRUE)
-}
-```
-
-## Create `FindAllMarkers()` lists for GSEA
-```{r}
-object.res.allmarkers <- FindAllMarkers(seurat.object)
-```
-
-## Map HGNC symbols
-```{r}
-Mouse2HumanTable <- Mouse2Human(object.res.allmarkers$gene)
-
-HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(object.res.allmarkers$gene, Mouse2HumanTable$MGI)])
-head(object.res.allmarkers)
-object.res.allmarkers$HGNC <- HGNC
-tail(object.res.allmarkers)
-sig.res <- object.res.allmarkers[object.res.allmarkers$p_val_adj <= 0.05, ]
-sig.res <- sig.res[c("avg_log2FC", "HGNC", "cluster")]
-sig.res <- sig.res[!(sig.res$HGNC == "" | is.na(sig.res$HGNC)),] # GSEA will fail if there are any blanks or NAs in the table
-sig.res <- sig.res[]
-
-```
-
-
-```{r}
-for(cluster in unique(sig.res$cluster)){
-	print(paste("writing cluster", cluster))
-	new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
-	new.table <- new.table[order(-new.table$avg_log2FC), ]
-	dir.create(paste0("RankList_res", object.res, "_findAll_hgnc/"), showWarnings = FALSE)
-	write.table(new.table, file = paste0("RankList_res", object.res, "_findAll_hgnc/res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
+	# xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
+	# 								 file = paste0(projectName, "_FindALLMarkers_dim",ndims, ".xlsx"), 
+	# 								 sheetName = paste0("res", ident.res), 
+	# 								 col.names = TRUE, 
+	# 								 row.names = FALSE, 
+	# 								 append = TRUE)
 	
+	## Map HGNC symbols
+	Mouse2HumanTable <- Mouse2Human(all.markers$gene)
+	
+	HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(all.markers$gene, Mouse2HumanTable$MGI)])
+	all.markers$HGNC <- HGNC
+	sig.res <- all.markers[all.markers$p_val_adj <= 0.05, ]
+	sig.res <- sig.res[c("avg_log2FC", "HGNC", "cluster")]
+	sig.res <- sig.res[!(sig.res$HGNC == "" | is.na(sig.res$HGNC)),] # GSEA will fail if there are any blanks or NAs in the table
+	sig.res <- sig.res[]
+	
+	for(cluster in unique(sig.res$cluster)){
+		print(paste("writing cluster", cluster))
+		new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
+		new.table <- new.table[order(-new.table$avg_log2FC), ]
+		try(dir.create(paste0("RankList_res", ident.res, "_findAll_hgnc/"), showWarnings = FALSE))
+		write.table(new.table, file = paste0("RankList_res", ident.res, "_findAll_hgnc/res", ident.res, "_cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
+	}
 }
 ```
+
+## topGO with FindAllMarkers
+```{r}
+source("/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/GoEnrichmentAnalysis.R")
+GO_enrichment_function(my_folder = "RankList_res.0.5_findAll_hgnc/", file.pattern = ".rnk", id.type = "symbol")
+```
+
 
 
 
@@ -781,3 +790,86 @@ Cluster stability could be influenced by:
 * neighborhood analysis used wrong parameters
 * Should include mitoC filter (there's a chunk of MEP w/ mitoC @ ~40%)
 * SCTransform accounts better for sources of variability
+
+
+# Generating 3D models
+```{r}
+rds.file <- "msAggr_seurat_dim26.RDS"
+seurat.object <- readRDS(rds.file)
+ndims <- as.numeric(gsub("[^0-9]", "", stringr::str_split(rds.file, "_")[[1]][3]))
+```
+
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+ndims <- length(which(cumsum(tot.var) <= 90))
+
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
+# seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims, n.components = 3)
+```
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+```
+Set object ident
+```{r}
+seurat.object <- SetIdent(seurat.object, value = "RNA_snn_res.0.5")
+```
+
+
+
+```{r}
+my_object <- seurat.object@reductions$umap@cell.embeddings
+# color.palette @ res.0.5 has 15 levels. Change color.palette[11] to a different color so can add the biomark cells as large black dots afterwards
+color.palette[11] <- "mediumpurple1"
+par3d("windowRect" = c(122, 44, 950, 929))
+bg3d("white", alpha = 0)
+plot3d(x=my_object[,1], y=my_object[,2], z=my_object[,3], 
+			 col = color.palette[seurat.object@meta.data$orig.ident], 
+			 box=FALSE, axes=FALSE, xlab = "", ylab = "", zlab = "")
+rgl.lines(c(-10, 10), c(0, 0), c(0, 0), color = "black")
+rgl.lines(c(0, 0), c(-10, 10), c(0, 0), color = "red")
+rgl.lines(c(0, 0), c(0, 0), c(-10, 10), color = "green")
+legend3d("topright", c(levels(seurat.object@meta.data$orig.ident)), col = color.palette, pch = 19, cex = 1)
+# biomark.embeddings <- subset(tech.integrated, subset = orig.ident == "biomark")
+# biomark.embeddings <- biomark.embeddings@reductions$umap@cell.embeddings
+# plot3d(x = biomark.embeddings[,1], y = biomark.embeddings[,2], z = biomark.embeddings[,3],
+# 			 col = "black", size = 10,
+# 			 add = TRUE)
+rgl.viewpoint(zoom = .5)
+movie3d(spin3d(axis = c(1, 1, 1), rpm = 6), duration = 10, dir = getwd(), clean = TRUE, webshot = FALSE, movie = paste0(projectName, "_dim", ndims, "umap_movie-orig.ident"))
+```
+
+```{r}
+my_object <- seurat.object@reductions$umap@cell.embeddings
+# color.palette @ res.0.5 has 15 levels. Change color.palette[11] to a different color so can add the biomark cells as large black dots afterwards
+color.palette[11] <- "mediumpurple1"
+par3d("windowRect" = c(122, 44, 950, 929))
+bg3d("white", alpha = 0)
+plot3d(x=my_object[,1], y=my_object[,2], z=my_object[,3], 
+			 col = color.palette[seurat.object@meta.data$RNA_snn_res.0.5], 
+			 box=FALSE, axes=FALSE, xlab = "", ylab = "", zlab = "")
+rgl.lines(c(-10, 10), c(0, 0), c(0, 0), color = "black")
+rgl.lines(c(0, 0), c(-10, 10), c(0, 0), color = "red")
+rgl.lines(c(0, 0), c(0, 0), c(-10, 10), color = "green")
+legend3d("topright", c(levels(seurat.object@meta.data$RNA_snn_res.0.5)), col = color.palette, pch = 19, cex = 1)
+rgl.viewpoint(zoom = .5)
+movie3d(spin3d(axis = c(1, 1, 1), rpm = 6), duration = 10, dir = getwd(), clean = TRUE, webshot = FALSE, movie = paste0(projectName, "_dim", ndims, "res.0.5-umap_movie"))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
