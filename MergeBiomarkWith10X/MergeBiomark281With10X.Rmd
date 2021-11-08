@@ -1,0 +1,440 @@
+---
+title: "MergeBiomark281With10X"
+output: html_notebook
+---
+
+
+
+
+
+```{r setup}
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/MergeBiomarkWith10X/")
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(cowplot)
+```
+
+# Set global variables
+```{r}
+projectName <- "MergeBiomark281With10X"
+jackstraw.dim <- 40
+```
+
+
+
+```{r}
+source("msAggr_AnalysisCode/read_10XGenomics_data.R")
+source("msAggr_AnalysisCode/PercentVariance.R")
+source("msAggr_AnalysisCode/Mouse2Human_idconversion.R")
+```
+
+
+store session info
+```{r }
+sink(paste0(projectName, ".txt"))
+sessionInfo()
+sink()
+```
+
+
+# Create seurat object
+
+## Load biomark data
+Try to read in Biomark Data
+
+Will need to include:
+cell list
+probe list
+expression matrix
+
+
+```{r}
+biomark.data <- read.table("Biomark281_expressionMatrix.txt", sep = "\t", header = TRUE, row.names = 1)
+biomark.data[is.na(biomark.data)] <- 0
+biomark.data.T <- data.table::transpose(biomark.data)
+colnames(biomark.data.T) <- rownames(biomark.data)
+rownames(biomark.data.T) <- colnames(biomark.data)
+# fix non-MGI gene names
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'Cd117'] <- 'Kit'
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'Cd123'] <- 'Il3ra'
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'H2.Aa'] <- 'H2-Aa'
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'H2.Ab1'] <- 'H2-Ab1'
+```
+
+Pull in original cellID info 
+
+```{r}
+biomark.order <- read.table("origBiomark_cellIDorder.txt", sep = "\t", header = FALSE, row.names = 1)
+biomark.order["clust.ID"] <- NA
+biomark.order[1:49, "clust.ID"] <- 0
+biomark.order[50:87, "clust.ID"] <- 17
+biomark.order[88:102, "clust.ID"] <- 10
+biomark.order[103:117, "clust.ID"] <- 0
+biomark.order[118:127, "clust.ID"] <- 3
+biomark.order[128:150, "clust.ID"] <- 0
+biomark.order[151:189, "clust.ID"] <- 11
+biomark.order[190:281, "clust.ID"] <- 0
+```
+
+
+```{r}
+fluor.table <- biomark.data[grepl("pos", colnames(biomark.data))]
+```
+
+
+
+```{r warning=FALSE, message=FALSE}
+biomark.meta <- data.frame(stringr::str_split_fixed(rownames(biomark.data), "_", 3)[,2:3], row.names = rownames(biomark.data))
+colnames(biomark.meta) <- c("wid", "pid")
+
+
+biomark.meta['nFeature_RNA'] <- NA
+for(cell in colnames(biomark.data.T)){
+	ngenes <- length(which(!(biomark.data.T[colnames(biomark.data.T > 0) == cell])))
+	biomark.meta[rownames(biomark.meta) == cell, 'nFeature_RNA'] <- ngenes
+}
+i1 <- match(row.names(biomark.meta), row.names(biomark.order))
+biomark.meta[names(biomark.order)[1]] <- lapply(biomark.order[1], `[`, i1)
+
+i1 <- match(row.names(biomark.meta), row.names(fluor.table))
+biomark.meta[names(fluor.table)[1:ncol(fluor.table)]] <- lapply(fluor.table[1:ncol(fluor.table)], `[`, i1)
+
+```
+
+```{r}
+# N.B., can't find alternate name for Kng2, so remove
+biomark.data.T <- biomark.data.T[!(rownames(biomark.data.T) == "Kng2"), ]
+biomark.data.T <- as.sparse(biomark.data.T)
+biomark <- CreateSeuratObject(biomark.data.T, project = "Biomark", assay = "RNA", meta.data = biomark.meta)
+```
+
+## Load CMP data
+
+```{r warning=FALSE}
+setwd("../cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
+data_file.list <- read_10XGenomics_data(sample.list = "CMPm2")
+object.data <-Read10X(data_file.list)
+cmp.object<- CreateSeuratObject(counts = object.data, min.cells = 3, min.genes = 200, project = "10X")
+```
+
+
+Remove non-biomark genes from cmp.object
+
+```{r}
+biomark.genes <- rownames(biomark@assays$RNA@data)
+cmp.object <- subset(cmp.object, features = biomark.genes)
+cmp.object@meta.data["wid"] <- '10X'
+cmp.object@meta.data["pid"] <- "p14"
+setdiff(rownames(biomark@assays$RNA@data), rownames(cmp.object@assays$RNA@data))
+```
+
+Clean up to free memory
+
+```{r}
+remove(object.data, biomark.data, biomark.meta)
+```
+
+## merge objects
+```{r}
+seurat.object <- merge(cmp.object, biomark, project = 'mergebiomark')
+seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == 'CMPm2'] <- '10X'
+seurat.object@meta.data$orig.ident[seurat.object@meta.data$orig.ident == 'CMP'] <- 'Biomark'
+seurat.object
+```
+
+```{r}
+seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+seurat.object <- FindVariableFeatures(seurat.object, selection.method = "vst", nfeatures = 10)
+```
+
+Scale data (linear transformation)
+
+```{r}
+all.genes <- rownames(seurat.object)
+seurat.object <- ScaleData(seurat.object, features = all.genes, vars.to.regress = c("orig.ident", "nFeature_RNA", "pid", "nCount_RNA"))
+```
+
+### Save merged object
+```{r}
+# saveRDS(seurat.object, file = paste0(projectName, "_raw.RDS"))
+```
+## Run PCA
+```{r}
+seurat.object <- RunPCA(seurat.object, ndims.print = 1:5, nfeatures.print = 5, features = all.genes)
+```
+
+
+```{r}
+DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
+VizDimLoadings(seurat.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
+
+```
+
+Calculate dimensionality
+```{r, figures-side, fig.show='hold', out.width="50%"}
+ElbowPlot(seurat.object, ndims = 50)
+percent.variance(seurat.object@reductions$pca@stdev)
+```
+
+
+
+
+## Calculate percent variance
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
+paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
+paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
+paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
+
+```
+
+## Add cluster IDs from Seurat v1
+
+Exported cell IDs for clusters 3, 17, 10, 11 from Seurat v1. Will add these IDs as a metadata column.  
+Create column "clust.ID" and populate with 0's. Then import IDs for clusters
+
+
+
+```{r}
+clust3.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster3cellIDs.txt", col.names = "clust03")
+clust3.cells <- sapply(clust3.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+clust17.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster17cellIDs.txt", col.names = "clust17")
+clust17.cells <- sapply(clust17.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+clust10.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster10cellIDs.txt", col.names = "clust10")
+clust10.cells <- sapply(clust10.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+clust11.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster11cellIDs.txt", col.names = "clust11")
+clust11.cells <- sapply(clust11.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+```
+
+
+## map cluster ids from Seuratv1
+```{r}
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust3.cells] <- 3
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust17.cells] <- 17
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust10.cells] <- 10
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust11.cells] <- 11
+seurat.object@meta.data[is.na(seurat.object@meta.data)] <- 0
+seurat.object@meta.data$clust.ID <- as.factor(seurat.object@meta.data$clust.ID)
+```
+
+
+## Lets see which cells correspond to our old clusters
+
+```{r}
+DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
+```
+
+
+```{r fig.width=15, fig.height=5}
+DimPlot(seurat.object, split.by = "clust.ID", group.by = "orig.ident", pt.size = 2)
+```
+
+
+
+## Split object for anchor-based integration
+
+```{r}
+cmp.subset <- SplitObject(seurat.object, split.by = "orig.ident")$`10X`
+DimPlot(cmp.subset, group.by = "clust.ID")
+```
+
+## Follow integration protocol
+
+https://satijalab.org/seurat/archive/v3.0/integration.html
+
+
+```{r}
+tech.list <- SplitObject(seurat.object, split.by = "orig.ident")
+
+for(i in 1:length(tech.list)){
+	tech.list[[i]] <- NormalizeData(tech.list[[i]], verbose = FALSE)
+	tech.list[[i]] <- FindVariableFeatures(tech.list[[i]], selection.method = "vst", nfeatures = 10, verbose = FALSE)
+}
+```
+
+
+## identify anchors
+```{r}
+# reference.list <- tech.list["10X"]
+tech.anchors <- FindIntegrationAnchors(object.list = tech.list, dims = 1:30, anchor.features = all.genes, k.anchor = 20, reduction = 'rpca', k.filter = NA)
+# tech.integrated <- IntegrateData(anchorset = tech.anchors, dims = 1:30, k.weight = 20, normalization.method = "SCT")
+tech.integrated <- IntegrateData(anchorset = tech.anchors, dims = 1:30, k.weight = 5)
+```
+## tech.integrated PCA
+
+```{r}
+DefaultAssay(tech.integrated) <- "integrated"
+tech.integrated <- ScaleData(tech.integrated)
+tech.integrated <- RunPCA(tech.integrated, npcs = 30)
+DimPlot(tech.integrated, reduction = "pca", group.by = "orig.ident")
+```
+
+so it looks like anchor-based integration is much nicer! goign to stick with this approach.
+
+Problem now is, how do we find whether Biomark overlays on 10X
+
+
+
+```{r fig.height = 5, fig.width=15}
+DimPlot(tech.integrated, split.by = "clust.ID", shape.by = "orig.ident", pt.size = 2, cols = c("black", "red"), reduction = "pca")
+```
+
+
+
+```{r fig.height=10, fig.width=10}
+png(filename = "tech.integrated_biomark281Fluor.png", height = 1600, width = 1600)
+FeaturePlot(tech.integrated, features = c("CD34pos", "cKitpos", "CD9pos", "CD36pos", "CD41pos", "CD48pos", "CD123pos", "CD150pos", "Flk2pos"), split.by = "clust.ID", reduction = "pca", cols = c("gray92", "blue"), keep.scale = "all", ncol = 1)
+dev.off()
+
+```
+
+
+
+
+## tech.integrated umap
+```{r}
+tech.integrated <- RunUMAP(tech.integrated, reduction = "pca", dims = 1:30)
+```
+## Plot UMAP
+```{r fig.width=15, fig.height=5}
+DimPlot(tech.integrated, split.by = "clust.ID", shape.by = "orig.ident", pt.size = 2, cols = c("black", "red"), reduction = "umap")
+```
+
+
+
+
+# Biomark Only
+## Load biomark data
+
+```{r}
+biomark.data <- read.table("Biomark281_expressionMatrix.txt", sep = "\t", header = TRUE, row.names = 1)
+biomark.data[is.na(biomark.data)] <- 0
+biomark.data.T <- data.table::transpose(biomark.data)
+colnames(biomark.data.T) <- rownames(biomark.data)
+rownames(biomark.data.T) <- colnames(biomark.data)
+# fix non-MGI gene names
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'Cd117'] <- 'Kit'
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'Cd123'] <- 'Il3ra'
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'H2.Aa'] <- 'H2-Aa'
+rownames(biomark.data.T)[rownames(biomark.data.T) == 'H2.Ab1'] <- 'H2-Ab1'
+```
+
+Pull in original cellID info 
+
+```{r}
+biomark.order <- read.table("origBiomark_cellIDorder.txt", sep = "\t", header = FALSE, row.names = 1)
+```
+
+
+```{r}
+biomark.order["clust.ID"] <- NA
+biomark.order[1:49, "clust.ID"] <- 0
+biomark.order[50:87, "clust.ID"] <- 17
+biomark.order[88:102, "clust.ID"] <- 10
+biomark.order[103:117, "clust.ID"] <- 0
+biomark.order[118:127, "clust.ID"] <- 3
+biomark.order[128:150, "clust.ID"] <- 0
+biomark.order[151:189, "clust.ID"] <- 11
+biomark.order[190:281, "clust.ID"] <- 0
+```
+
+```{r warning=FALSE, message=FALSE}
+biomark.meta <- data.frame(stringr::str_split_fixed(rownames(biomark.data), "_", 3)[,2:3], row.names = rownames(biomark.data))
+colnames(biomark.meta) <- c("wid", "pid")
+
+
+biomark.meta['nFeature_RNA'] <- NA
+for(cell in colnames(biomark.data.T)){
+	ngenes <- length(which(!(biomark.data.T[colnames(biomark.data.T > 0) == cell])))
+	biomark.meta[rownames(biomark.meta) == cell, 'nFeature_RNA'] <- ngenes
+}
+i1 <- match(row.names(biomark.meta), row.names(biomark.order))
+biomark.meta[names(biomark.order)[1]] <- lapply(biomark.order[1], `[`, i1)
+
+```
+
+```{r}
+# N.B., can't find alternate name for Kng2, so remove
+biomark.data.T <- biomark.data.T[!(rownames(biomark.data.T) == "Kng2"), ]
+biomark.data.T <- as.sparse(biomark.data.T)
+biomark <- CreateSeuratObject(biomark.data.T, project = "Biomark", assay = "RNA", meta.data = biomark.meta)
+```
+
+
+
+
+
+```{r}
+biomark <- NormalizeData(biomark, normalization.method = "LogNormalize", scale.factor = 10000)
+biomark <- FindVariableFeatures(biomark, selection.method = "vst", nfeatures = 10)
+all.genes <- rownames(biomark)
+biomark <- ScaleData(biomark, features = all.genes, vars.to.regress = c("nFeature_RNA", "pid", "nCounts_RNA"))
+```
+
+### Save merged object
+```{r}
+# saveRDS(biomark, file = paste0(projectName, "_raw.RDS"))
+```
+## Run PCA
+```{r}
+biomark <- RunPCA(biomark, ndims.print = 1:5, nfeatures.print = 5, features = all.genes)
+```
+
+
+```{r}
+DimPlot(biomark, reduction = "pca", group.by = "orig.ident")
+VizDimLoadings(biomark, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 3)
+
+```
+
+Calculate dimensionality
+```{r}
+ElbowPlot(biomark, ndims = 50)
+percent.variance(biomark@reductions$pca@stdev)
+```
+
+
+
+
+## Calculate percent variance
+```{r}
+tot.var <- percent.variance(biomark@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+paste0("Num pcs for 80% variance:", length(which(cumsum(tot.var) <= 80)))
+paste0("Num pcs for 85% variance:", length(which(cumsum(tot.var) <= 85)))
+paste0("Num pcs for 90% variance:", length(which(cumsum(tot.var) <= 90)))
+paste0("Num pcs for 95% variance:", length(which(cumsum(tot.var) <= 95)))
+
+```
+
+## Add cluster IDs from Seurat v1
+
+Exported cell IDs for clusters 3, 17, 10, 11 from Seurat v1. Will add these IDs as a metadata column.  
+Create column "clust.ID" and populate with 0's. Then import IDs for clusters
+
+
+
+## Lets see which cells correspond to our old clusters
+
+```{r}
+DimPlot(biomark, reduction = "pca", group.by = "orig.ident") + facet_wrap(~orig.ident)
+```
+
+
+```{r fig.width=15, fig.height=8}
+biomark@meta.data$clust.ID <- as.factor(biomark@meta.data$clust.ID)
+DimPlot(biomark, group.by = "clust.ID", pt.size = 2, shape.by = "clust.ID")
+```
+
+
+
+```{r fig.width=15, fig.height = 5}
+DimPlot(biomark, split.by = "clust.ID", pt.size = 2, shape.by = "orig.ident")
+```
+
+
+
+
+

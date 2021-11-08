@@ -7,3 +7,6 @@
 *.RDS
 *.Rhistory
 .Rproj.user
+*.png
+*.xlsx
+*.pptx

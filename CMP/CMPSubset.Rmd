@@ -24,7 +24,8 @@ library(dplyr)
 library(Seurat)
 library(patchwork)
 library(ggplot2)
-library(clustree)
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/CMP/")
+# library(clustree)
 ```
 
 ## Set global variables
@@ -32,7 +33,6 @@ library(clustree)
 projectName <- "CMP"
 jackstraw.dim <- 40
 ```
-
 ## Store session info
 ```{r}
 sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
@@ -43,15 +43,15 @@ sink()
 
 ## Load local scripts
 ```{r}
-source("../RFunctions/read_10XGenomics_data.R")
-source("../RFunctions/PercentVariance.R")
-source("../RFunctions/Mouse2Human_idconversion.R")
-source ("../RFunctions/ColorPalette.R")
+<<<<<<< HEAD
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/read_10XGenomics_data.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/PercentVariance.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/Mouse2Human_idconversion.R")
 ```
 
-# Read CMPm2
+
 ```{r warning=FALSE}
-setwd("../../cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
+setwd("~/Desktop/10XGenomicsData/cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
 data_file.list <- read_10XGenomics_data(sample.list = "CMPm2")
 object.data <-Read10X(data_file.list)
 ```
@@ -1210,4 +1210,16 @@ So we did the dimensional reduction based on the biomark RNAs, then did our UMAP
 
 
 In the biomark hierarchcial clustering analysis I assayed 167 cells. The smallest cluster I detected had 3 cells, or 1.8% of total, and this is an uncomfortably small number of cells. Based on the UMAP calculations I would therefore expect to find 11 or 12 of the predicted 15 clusters. I found 12, and I don't really like that last one, so 11 or 12. Since I did the hierarchcial clustering yesterday and did this math today, we can say it was independent of these results and therefore totally legit. Yay!!
+
+# Export for Biomark clustering
+
+```{r}
+biomark.genes <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/MergeBiomarkWith10X/geneIDs.txt", header = FALSE)
+biomark.genes <- unlist(biomark.genes)
+```
+```{r}
+seurat.xprsn <- seurat.object@assays$RNA@scale.data
+seurat.xprsn <- seurat.xprsn[row.names(seurat.xprsn) %in% biomark.genes,]
+seurat.xprsn <- merge(seurat.xprsn, seurat.object@meta.data$RNA_snn_res.1, by = rownames(seurat.xprsn))
+```
 

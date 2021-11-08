@@ -1,0 +1,757 @@
+---
+title: "Individual_Pop_Analysis"
+output:
+  html_document:
+    df_print: paged
+---
+Creating new pipeline using seurat v4.0.2 available 2021.06.23  
+Important notes:
+
+* FILTERING on `percent.mt`, but NOT regressing on `percent.mt`
+* Regressing on `nCounts_RNA` and `nFeature_RNA`
+
+# Setup
+## Load libraries required for Seuratv4
+```{r setup, message=FALSE, warning=FALSE}
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/IndividualPops/")
+knitr::opts_chunk$set(fig.width = 6, fig.height = 4)
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(clustree)
+```
+## Source functions
+```{r}
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/read_10XGenomics_data.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/PercentVariance.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/Mouse2Human_idconversion.R")
+```
+
+## Set global variables
+```{r}
+pop.id <- "CMP"
+folder.appendix <- "m2"
+fav.var <- 90
+pct.var <- 90
+object.res <- ".1"
+ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
+folder.id <- paste0(pop.id, folder.appendix)
+projectName <- paste0(pop.id, "Subpop")
+```
+
+## Store session info
+```{r}
+sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
+sink(sessionInfo.filename)
+sessionInfo()
+sink()
+```
+
+
+# A note about using SCTransform versus `ScaleData`
+https://bioconductor.org/packages/3.10/workflows/vignettes/simpleSingleCell/inst/doc/batch.html#62_for_gene-based_analyses
+>You can also normalize and scale data for the RNA assay. There are numerous resources on this, but Aaron Lun describes why the original log-normalized values should be used for DE and visualizations of expression quite well here:
+>
+>For gene-based procedures like differential expression (DE) analyses or gene network construction, it is desirable to use the original log-expression values or counts. The corrected values are only used to obtain cell-level results such as clusters or trajectories. Batch effects are handled explicitly using blocking terms or via a meta-analysis across batches. We do not use the corrected values directly in gene-based analyses, for various reasons:
+>
+>It is usually inappropriate to perform DE analyses on batch-corrected values, due to the failure to model the uncertainty of the correction. This usually results in loss of type I error control, i.e., more false positives than expected.
+>
+>The correction does not preserve the mean-variance relationship. Applications of common DE methods like edgeR or limma are unlikely to be valid.
+>
+>Batch correction may (correctly) remove biological differences between batches in the course of mapping all cells onto a common coordinate system. Returning to the uncorrected expression values provides an opportunity for detecting such differences if they are of interest. Conversely, if the batch correction made a mistake, the use of the uncorrected expression values provides an important sanity check.
+>
+>In addition, the normalized values in SCT and integrated assays don't necessary correspond to per-gene expression values anyway, rather containing residuals (in the case of the scale.data slot for each).
+
+
+
+Mess with how to load 4 cell populations into single seurat object
+
+
+
+SET SEED?????!!!!!
+
+
+```{r warning=FALSE, message=FALSE}
+setwd("~/Desktop/10XGenomicsData/cellRanger/") # temporarily changing wd only works if you run the entire chunk at once
+data_file.list <- read_10XGenomics_data(sample.list = c(folder.id))
+data.object<-Read10X(data_file.list)
+```
+
+
+
+```{r}
+seurat.object<- CreateSeuratObject(counts = data.object, min.cells = 3, min.genes = 200, project = projectName)
+```
+
+Clean up to free memory
+
+```{r}
+remove(data.object)
+```
+
+
+Add mitochondrial metadata and plot some basic features
+```{r}
+seurat.object[["percent.mt"]] <- PercentageFeatureSet(seurat.object, pattern = "^mt-")
+VlnPlot(seurat.object, features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 3, pt.size = 0, fill.by = 'orig.ident', )
+```
+
+
+```{r fig.width = 6, fig.height=4}
+plot1 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "percent.mt", group.by = "orig.ident", pt.size = 0.01)
+plot2 <- FeatureScatter(seurat.object, feature1 = "nCount_RNA", feature2 = "nFeature_RNA", group.by = "orig.ident", pt.size = 0.01)
+plot1 + plot2
+```
+
+
+remove low quality cells
+require: nFeature_RNA between 200 and 4000 (inclusive)
+require: percent.mt <= 5
+
+```{r}
+print(paste("original object:", nrow(seurat.object@meta.data), "cells", sep = " "))
+seurat.object <- subset(seurat.object, 
+												subset = nFeature_RNA >=200 & 
+													nFeature_RNA <= 4000 & 
+													percent.mt <= 5
+)
+print(paste("new object:", nrow(seurat.object@meta.data), "cells", sep = " "))
+```
+
+
+
+## Normalization
+
+Struggling to wrap my head around this one. It seems that SCTransform is best for batch correction, but `NormalizeData` and `ScaleData` are best for DGE. Several vignettes have performed both
+
+`selection.method	
+How to choose top variable features. Choose one of :
+
+vst: First, fits a line to the relationship of log(variance) and log(mean) using local polynomial regression (loess). Then standardizes the feature values using the observed mean and expected variance (given by the fitted line). Feature variance is then calculated on the standardized values after clipping to a maximum (see clip.max parameter).
+
+mean.var.plot (mvp): First, uses a function to calculate average expression (mean.function) and dispersion (dispersion.function) for each feature. Next, divides features into num.bin (deafult 20) bins based on their average expression, and calculates z-scores for dispersion within each bin. The purpose of this is to identify variable features while controlling for the strong relationship between variability and average expression.
+
+dispersion (disp): selects the genes with the highest dispersion values`
+
+
+
+
+```{r}
+seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+```
+
+
+
+
+
+Find variable features
+```{r fig.width = 12, fig.height = 5}
+seurat.object <- FindVariableFeatures(seurat.object, selection.method = "vst", nfeatures = 2000)
+top10 <- head(VariableFeatures(seurat.object), 10)
+plot1 <- VariableFeaturePlot(seurat.object)
+plot2 <- LabelPoints(plot = plot1, points = top10, repel = TRUE)
+try(plot1 + plot2)
+```
+
+Scale data (linear transformation)
+
+```{r}
+all.genes <- rownames(seurat.object)
+seurat.object <- ScaleData(seurat.object, features = all.genes, vars.to.regress = c("nCount_RNA", "nFeature_RNA"))
+```
+
+
+### Save progress
+
+```{r}
+# save.image(file = paste0(projectName, '.RData'))
+saveRDS(seurat.object, file = paste0(projectName, "_raw.RDS"))
+```
+
+
+## PCA
+
+linear dimensional reduction. Default are based on VariableFeatures, but can be changed
+
+```{r}
+seurat.object <- RunPCA(seurat.object, features = VariableFeatures(object = seurat.object))
+```
+Plot results
+```{r fig.width=4, fig.height=4}
+VizDimLoadings(seurat.object, dims = 1:6, nfeatures = 10, reduction = "pca", ncol = 2)
+```
+
+DimPlot colored by orig.ident
+```{r}
+DimPlot(seurat.object, reduction = "pca", group.by = "orig.ident")
+```
+Let's put in a concerted effort to pick the right dimensionality using the newest software
+```{r}
+# jackstraw.dim <- 40
+# seurat.object <- JackStraw(seurat.object, num.replicate = 100, dims = jackstraw.dim) #runs ~50 min
+# seurat.object <- ScoreJackStraw(seurat.object, dims = 1:jackstraw.dim)
+# save.image(paste0(projectName, ".RData"))
+```
+Draw dim.reduction plots
+```{r}
+# JackStrawPlot(seurat.object, dims = 25:36)
+```
+```{r, figures-side, fig.show='hold', out.width="50%"}
+ElbowPlot(seurat.object, ndims = 50)
+percent.variance(seurat.object@reductions$pca@stdev)
+```
+Number of PCs describing X% of variance
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+paste0("Num pcs for 80% variance: ", length(which(cumsum(tot.var) <= 80)))
+paste0("Num pcs for 85% variance: ", length(which(cumsum(tot.var) <= 85)))
+paste0("Num pcs for 90% variance: ", length(which(cumsum(tot.var) <= 90)))
+paste0("Num pcs for 95% variance: ", length(which(cumsum(tot.var) <= 95)))
+
+```
+
+
+# ID clusters based on different variances
+## Describe 80% of variance 
+
+### Neighborhood and umap
+set total.var <- 80%
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 80
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+print(ndims)
+
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+```
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = "RNA_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col) ))
+		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
+	}
+}
+```
+
+```{r}
+saveRDS(seurat.object, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
+```
+
+```{r}
+
+```
+
+
+
+### Evaluate cluster stability
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
+dev.off()
+```
+
+
+## Describe 85% of variance 
+
+### Neighborhood and umap
+set total.var <- 85%
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 85
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+```
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = "RNA_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col) ))
+		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
+	}
+}
+```
+
+```{r}
+saveRDS(seurat.object, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
+```
+
+
+### Evaluate cluster stability
+Must ensure we have the right cluster stability, that is, cells that start in the same cluster tend to stay in the same cluster. If your data is over-clustered, cells will bounce between groups.
+
+Following [this tutorial by Matt O.].https://towardsdatascience.com/10-tips-for-choosing-the-optimal-number-of-clusters-277e93d72d92.
+Previously my favourite has been Clustree, which gives a nice visual
+NB: For some reason `clustree::clustree()` didn't work, whereas `library(clustree)` followed by `clustree()` did.
+
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+## Describe 90% of variance 
+
+### Neighborhood and umap
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 90
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+```
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = "RNA_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col) ))
+		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
+	}
+}
+```
+
+
+
+```{r}
+saveRDS(seurat.object, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
+```
+
+
+### Evaluate cluster stability
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
+dev.off()
+```
+## Describe 95% of variance 
+
+### Neighborhood and umap
+```{r}
+tot.var <- percent.variance(seurat.object@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
+pct.var <- 95
+ndims <- length(which(cumsum(tot.var) <= pct.var))
+
+seurat.object <- FindNeighbors(seurat.object, dims = 1:ndims)
+seurat.object <- FindClusters(seurat.object, resolution = 0.5)
+seurat.object <- RunUMAP(seurat.object, dims = 1: ndims)
+
+```
+Plot UMAP
+
+```{r}
+for(x in c(0.5, 1, 1.5, 2, 2.5)){
+	seurat.object <- FindClusters(seurat.object, resolution = x)
+}
+```
+
+```{r}
+for (meta.col in colnames(seurat.object@meta.data)){
+	if(grepl(pattern = "RNA_snn_res", x = meta.col)==TRUE | grepl(pattern = "orig.ident", x = meta.col)==TRUE){
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col) ))
+		plot(myplot)
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		myplot <- DimPlot(seurat.object, 
+											group.by = meta.col,
+											reduction = "umap", 
+											pt.size = 1,
+											cols = color.palette) + 
+			facet_wrap(meta.col) + 
+			ggtitle(paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col)))
+		
+		png(filename = paste0(projectName, " pctVar", pct.var, "res.", gsub("RNA_snn_res.", "", meta.col), "-umap_FacetRes.png"), height = 800, width = 800)
+		plot(myplot)
+		dev.off()
+		
+	}
+}
+```
+
+```{r}
+saveRDS(seurat.object, file = paste0(projectName, "_pctVar", pct.var, ".RDS"))
+```
+
+
+### Evaluate cluster stability
+```{r fig.height=5}
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") + 
+	scale_color_continuous(low = 'red3', high = 'white')
+png(filename = paste0(projectName, "_pctVar", pct.var, "-clustree.png"), height = 800, width = 1600)
+clustree(seurat.object, prefix = "RNA_snn_res.", node_colour = "sc3_stability") +
+	scale_color_continuous(low = 'red3', high = 'white')
+dev.off()
+```
+
+
+
+
+
+
+
+
+
+
+
+# Export for Biomark
+## Import biomark probe list
+```{r}
+seurat.object <- readRDS(paste0(projectName, "_pctVar", fav.var, ".RDS"))
+seurat.object <- SetIdent(seurat.object, value = paste0("RNA_snn_res", object.res))
+```
+
+```{r}
+probe.list <- read.table("/Users/heustonef/Desktop/10XGenomicsData/BioMark/BiomarkRNAs.txt", header = FALSE)
+probe.list <- unlist(as.list(probe.list), use.names = FALSE)
+probe.list <- c(probe.list, "Kit", "Il3ra")
+```
+## downsample
+__NOTE: do I need to do the downsampling before the corrections? Probably not, because I'm exporting counts and not corrected data
+```{r}
+object.downsample <- subset(biomark.object, cells = sample(Cells(biomark.object), 300))
+```
+
+## generate and export counts matrix
+```{r}
+xprsn.mtx <- t(as.data.frame(as.matrix(GetAssayData(object.downsample, slot = "counts"))))
+object.metadata <- seurat.object@meta.data[rownames(seurat.object@meta.data) %in% rownames(xprsn.mtx), ]
+# biomark.export <- xprsn.mtx
+biomark.export <- merge(xprsn.mtx, object.metadata[paste0("RNA_snn_res", object.res)], by = 0)
+colnames(biomark.export)[colnames(biomark.export) == "Kit"] <- "Cd117"
+colnames(biomark.export)[colnames(biomark.export) == "Il3ra"] <- "Cd123"
+write.table(biomark.export, file = paste0(projectName, "_Counts-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+
+xprsn.mtx <- t(as.data.frame(as.matrix(GetAssayData(object.downsample, slot = "data"))))
+object.metadata <- seurat.object@meta.data[rownames(seurat.object@meta.data) %in% rownames(xprsn.mtx), ]
+# biomark.export <- xprsn.mtx
+biomark.export <- merge(xprsn.mtx, object.metadata[paste0("RNA_snn_res", object.res)], by = 0)
+colnames(biomark.export)[colnames(biomark.export) == "Kit"] <- "Cd117"
+colnames(biomark.export)[colnames(biomark.export) == "Il3ra"] <- "Cd123"
+write.table(biomark.export, file = paste0(projectName, "_Data-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+
+xprsn.mtx <- t(as.data.frame(as.matrix(GetAssayData(object.downsample, slot = "scale.data"))))
+object.metadata <- seurat.object@meta.data[rownames(seurat.object@meta.data) %in% rownames(xprsn.mtx), ]
+# biomark.export <- xprsn.mtx
+biomark.export <- merge(xprsn.mtx, object.metadata[paste0("RNA_snn_res", object.res)], by = 0)
+colnames(biomark.export)[colnames(biomark.export) == "Kit"] <- "Cd117"
+colnames(biomark.export)[colnames(biomark.export) == "Il3ra"] <- "Cd123"
+write.table(biomark.export, file = paste0(projectName, "_ScaleData-BiomarkProbes.txt"), sep = "\t", quote = FALSE, col.names = TRUE, row.names = FALSE)
+
+```
+
+## Heatmap cluster
+```{r}
+seurat.object <- SetIdent(seurat.object, value = "RNA_snn_res.0.5")
+seurat.markers <- FindAllMarkers(seurat.object)
+```
+```{r}
+# backup.seurat.markers <- seurat.markers
+seurat.markers <- backup.seurat.markers
+```
+
+```{r warning=FALSE}
+# seurat.markers.dplyr <- seurat.markers %>% group_by(cluster) %>% arrange(desc(avg_log2FC))
+# biomark.intersect <- seurat.markers[rownames(seurat.markers) %in% probe.list, ]
+# biomark.intersect <- biomark.intersect[biomark.intersect$p_val_adj < 0.05, ]
+# biomark.intersect <- biomark.intersect[order(biomark.intersect$cluster, -biomark.intersect$avg_log2FC),]
+```
+```{r}
+# seurat.markers %>% group_by(cluster) %>% top_n(n = 10, wt = avg_log2FC) -> biomark.intersect
+biomark.intersect <- seurat.markers[seurat.markers$gene %in% probe.list,]
+biomark.intersect %>% group_by(cluster) %>% arrange(desc(avg_log2FC)) -> biomark.intersect
+DoHeatmap(seurat.object, features = biomark.intersect$gene)
+png(filename = paste0(projectName, "_pctVar", fav.var, "res.0.5.png"), height = 1600, width = 1600)
+DoHeatmap(seurat.object, features = biomark.intersect$gene)
+dev.off()
+```
+
+
+
+
+
+```{r}
+biomark.order <- c("Ifitm1", "Lgals3", "Txnip", "Ube2c", "Cst3", "Lmo4", "Psap", "S100a8", "Fos", "Rbp2", "Kit", "Klf6", "AA467197", "Cd34","Ly6c2", "Hist1h2ap", "Ly6a", "Pbx1", "Apoe", "Cd44", "Emb", "Actb", "Csrp3", "Lsp1", "Ms4a2", "Cpa3", "Gp1bb", "Mt2" ,"Ccl3", "Cebpe", "H2-Aa", "B2m", "Mpl", "Ctla2a", "Cd69", "Cd53", "Flt3", "Egr1", "Nrgn", "Aif1", "Jun", "Cd9", "Irf8", "Hp", "Prtn3", "Vamp5", "Cd27", "Birc5", "Mpo", "Vwf", "Cnrip1", "Itga2b", "Cd74", "Hlf", "Ms4a6c", "Kng2", "Jund", "Lyz2", "Il3ra", "Cd48", "Cd82", "Ccl9", "Gata1", "Tsc22d1", "Ly86", "Mecom", "S100a11", "Itgb3", "Gata2", "Sell", "Dhrs3", "Cd52", "Pf4", "Tsmb4x", "Klf1", "Tmod1", "Cd177", "Dntt")
+setdiff(biomark.order, seurat.markers$gene)
+```
+
+```{r}
+biomark.intersect <- seurat.markers[seurat.markers$gene %in% biomark.order,]
+# biomark.intersect$gene <- factor(biomark.intersect$gene, levels = biomark.order)
+biomark.intersect %>% group_by(cluster) %>% arrange(factor(biomark.intersect$gene, levels = biomark.order)) -> biomark.intersect
+biomark.heatmap <- DoHeatmap(seurat.object, features = biomark.intersect$gene)
+```
+```{r}
+png(filename = paste0(projectName, "_pctVar", fav.var, "res.0.5-biomarkorder.png"), height = 1600, width = 1600)
+plot(biomark.heatmap)
+dev.off()
+```
+
+
+
+
+
+
+## Hierarchcial clustering
+```{r}
+# seurat.object <- SetIdent(seurat.object, value = "RNA_snn_res.0.5")
+seurat.object <- BuildClusterTree(seurat.object)
+PlotClusterTree(seurat.object, direction = "downwards")
+```
+
+
+
+
+
+# DGE
+I think clusters from 80% variance at 0.5 and 1.0 resolution are most stable. We'll do some statistics and DGE on that. Will also need to go back and play with SCTransform, since these are multiple cell types from multiple lanes.
+## Load favourite dim reduction file
+```{r}
+seurat.object <- readRDS(paste0(projectName, "_pctVar", fav.var, ".RDS"))
+```
+
+## Set favourite resolution
+```{r}
+
+Idents(seurat.object) <- paste0("RNA_snn_res", object.res)
+length(levels(seurat.object@active.ident))
+```
+
+
+## count number of filtered cells left from each population
+```{r}
+# Number of filtered cells left in each pop
+# sapply(c("LSKm2", "CMPm2", "MEPm", "GMPm"), function(x) (c(nrow(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x,]))))
+```
+
+```{r}
+# par(mfrow = c(2, 2))
+# for (x in c("LSKm2", "CMPm2", "MEPm", "GMPm")){
+# 	h = hist(seurat.object@meta.data[seurat.object@meta.data$orig.ident == x, 'percent.mt'], breaks = 30, plot = FALSE)
+# 	h$density = h$counts/sum(h$counts)*100
+# 	plot(h,freq=FALSE, main =  paste(x, "percent mitoC"), xlab = "percent mitoC", ylab = "Frequency")
+# }
+# par(mfrow = c(1,1))
+```
+
+```{r fig.width=5}
+# VlnPlot(subset(seurat.object, subset = orig.ident == "MEPm"), 
+# 				features = c("nFeature_RNA", "nCount_RNA", "percent.mt"), ncol = 1, pt.size = 0, fill.by = 'ident', flip = TRUE)
+```
+
+
+## DGE w/ object
+Strt with comparing all clusters against all other clusters and write out cluster info
+calculate `FindAllMarkers()` for different idents and save to new file  
+### [Note from devs](https://www.biostars.org/p/409790/):
+"FindMarkers will find markers between two different identity groups - you have to specify both identity groups. This is useful for comparing the differences between two specific groups.
+
+FindAllMarkers will find markers differentially expressed in each identity group by comparing it to all of the others - you don't have to manually define anything. Note that markers may bleed over between closely-related groups - they are not forced to be specific to only one group. This is what most people use (and likely what you want).
+
+FindConservedMarkers will find markers that are conserved between two groups - this can be useful if you want to find markers that are conserved between a treated and untreated condition for a specific cell type or group of cells. It means they are differentially expressed compared to other groups, but have similar expression between the two groups you're actually comparing."
+```{r}
+# ident.list <- colnames(seurat.object@meta.data)[grepl("^RNA_snn", colnames(seurat.object@meta.data))]
+
+
+for(tested.ident in ident.list){
+	Idents(seurat.object) <- tested.ident
+	all.markers <- FindAllMarkers(seurat.object)
+	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
+									 file = paste0(projectName, "_FindALLMarkers_pctVar", pct.var, "_allres.xlsx"), 
+									 sheetName = tested.ident, 
+									 col.names = TRUE, 
+									 row.names = FALSE, 
+									 append = TRUE)
+}
+```
+
+## Create `FindAllMarkers()` lists for GSEA
+```{r}
+object.res.allmarkers <- FindAllMarkers(seurat.object)
+```
+
+## Map HGNC symbols
+```{r}
+Mouse2HumanTable <- Mouse2Human(object.res.allmarkers$gene)
+
+HGNC <- with(Mouse2HumanTable, Mouse2HumanTable$HGNC[match(object.res.allmarkers$gene, Mouse2HumanTable$MGI)])
+head(object.res.allmarkers)
+object.res.allmarkers$HGNC <- HGNC
+tail(object.res.allmarkers)
+sig.res <- object.res.allmarkers[object.res.allmarkers$p_val_adj <= 0.05, ]
+sig.res <- sig.res[c("avg_log2FC", "HGNC", "cluster")]
+sig.res <- sig.res[!(sig.res$HGNC == "" | is.na(sig.res$HGNC)),] # GSEA will fail if there are any blanks or NAs in the table
+sig.res <- sig.res[]
+
+```
+
+
+```{r}
+for(cluster in unique(sig.res$cluster)){
+	print(paste("writing cluster", cluster))
+	new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
+	new.table <- new.table[order(-new.table$avg_log2FC), ]
+	dir.create(paste0("RankList_res", object.res, "_findAll_hgnc/"), showWarnings = FALSE)
+	try(write.table(new.table, file = paste0(projectName, "RankList_pctVar", pct.var, "res", object.res, "_findAll_hgnc/res", object.res, "cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", ))
+	
+}
+```
+
+
+
+calculate `FindMarkers()` that distinguish each cluster 
+```{r}
+# ident.list <- colnames(seurat.object@meta.data)[grepl("^RNA_snn", colnames(seurat.object@meta.data))]
+ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
+for(tested.ident in ident.list){
+	for (cluster in sort(as.numeric(levels(seurat.object@meta.data[[tested.ident]])))){
+		cluster.markers <- FindMarkers(seurat.object, ident.1 = cluster)
+		xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
+										 file = paste0(projectName, "_FindMarkers_pctVar", pct.var, gsub("RNA_snn_", "", tested.ident), ".xlsx"), 
+										 sheetName = paste0("clst", cluster), 
+										 col.names = TRUE, 
+										 row.names = TRUE, 
+										 append = TRUE)
+	}
+}
+```
+
+
+
+```{r}
+for (cluster in sort(as.numeric(levels(seurat.object@meta.data[paste0("RNA_snn_res", object.res)])))){
+	cluster.markers <- FindMarkers(seurat.object, ident.1 = cluster)
+	xlsx::write.xlsx(x = cluster.markers[,c("avg_log2FC", "p_val_adj")], 
+									 file = paste0(projectName, "_FindMarkers_pctVar", pct.var, "res", object.res, ".xlsx"), 
+									 sheetName = paste0("clst", cluster), 
+									 col.names = TRUE, 
+									 row.names = TRUE, 
+									 append = TRUE)
+}
+```
+
+
+# Notes on cluster stability
+Cluster stability could be influenced by:
+* cells in each population (cellranger v6 includes more cells than cellranger v1, especially in MEP)
+* dimensionality is incorrect
+* ScaleData didnt account for regression factors (e.g., "nCounts_RNA" or "nFeatures_RNA")
+* Did not consider cell cycle
+* Incorrect normalization/scaling method
+* Clustering is too strict or not strict enough
+* neighborhood analysis used wrong parameters
+* Should include mitoC filter (there's a chunk of MEP w/ mitoC @ ~40%)
+* SCTransform accounts better for sources of variability
