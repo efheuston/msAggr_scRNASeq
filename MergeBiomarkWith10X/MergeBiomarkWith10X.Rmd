@@ -37,8 +37,8 @@ library(rgl)
 pop.of.interest <- "CMP"
 cellranger.folder <- "m2"
 integrated.var <- 95
-integrated.res <- ".0.5"
-integrated.ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1")
+integrated.res <- ".1"
+integrated.ident.list <- c("integrated_snn_res.0.5", "integrated_snn_res.1", "integrated_snn_res.1.5")
 projectName <- paste0("MergeBiomarkWith10X_", pop.of.interest)
 sc.pop.var <- 90
 sc.pop.res <- ".0.5"
@@ -198,7 +198,10 @@ merged.object <- RunPCA(merged.object, ndims.print = 1:5, nfeatures.print = 5, f
 
 
 ```{r}
-DimPlot(merged.object, reduction = "pca", group.by = "orig.ident")
+DimPlot(merged.object, reduction = "pca", group.by = "orig.ident", cols = c("black", "red"), pt.size = 1)
+png(filename = paste0(projectName, "merged_PCA.png"), height = 800, width = 800)
+DimPlot(merged.object, reduction = "pca", group.by = "orig.ident", cols = c("black", "red"), pt.size = 2)
+dev.off()
 ```
 
 ```{r}
@@ -644,7 +647,7 @@ for(cluster in unique(sig.res$cluster)){
 ## load object
 ```{r}
 tech.integrated <- readRDS(paste0(projectName, "_pctVar", integrated.var, ".RDS"))
-tech.integrated <- SetIdent(tech.integrated, value = "integrated_snn_res.0.5")
+tech.integrated <- SetIdent(tech.integrated, value = paste0("integrated_snn_res", integrated.res))
 tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest, cellranger.folder)] <- "10X"
 tech.integrated@meta.data$orig.ident[tech.integrated@meta.data$orig.ident == paste0(pop.of.interest)] <- "biomark"
 tech.integrated@meta.data$orig.ident <- factor(tech.integrated@meta.data$orig.ident)
@@ -694,20 +697,20 @@ biomark.integrated <- subset(tech.integrated, subset = orig.ident == "biomark")
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 ```
 ```{r}
-png(filename = paste0(projectName, "_pctVar", integrated.var, "res.", integrated.res, "-fluor.png"), height = 2400, width = 800)
+png(filename = paste0(projectName, "_pctVar", integrated.var, "res", integrated.res, "-fluor.png"), height = 2400, width = 800)
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 dev.off()
 ```
 plot umaps
-for(integrated.col in integrated.ident.list){
 ```{r}
+for(integrated.col in integrated.ident.list){
 		plot.title <- paste0(projectName, "_pctVar", pct.var, "-mergedEnrichment_OrigIdent-Facet-integratedRes.", gsub("integrated_snn_res.", "", integrated.col))
 		myplot <- DimPlot(tech.integrated, 
 											group.by = "orig.ident",
 											split.by = integrated.col, 
 											reduction = "umap", 
 											pt.size = 1.5,
-											ncol = round(sqrt(length(levels(seurat.object@meta.data[[sc.col]])))),
+											ncol = round(sqrt(length(levels(tech.integrated@meta.data[[sc.col]])))),
 											cols = color.palette) + 
 			ggtitle(paste0(projectName, "_pctVar", pct.var, "-", integrated.col, " faceted by ", sc.col))
 		plot(myplot)
@@ -812,32 +815,127 @@ Plot in 3d
 ```{r}
 tot.var <- percent.variance(tech.integrated@reductions$pca@stdev, plot.var = FALSE, return.val = TRUE)
 ndims <- length(which(cumsum(tot.var) <= integrated.var))
-
-tech.integrated <- FindNeighbors(tech.integrated, dims = 1:ndims)
-tech.integrated <- FindClusters(tech.integrated, resolution = 0.5)
-tech.integrated <- RunUMAP(tech.integrated, dims = 1: ndims, n.components = 3)
+tech.integrated.3d <- tech.integrated
+tech.integrated.3d <- FindNeighbors(tech.integrated.3d, dims = 1:ndims)
+tech.integrated.3d <- FindClusters(tech.integrated.3d, resolution = as.numeric(integrated.res))
+tech.integrated.3d <- RunUMAP(tech.integrated.3d, dims = 1: ndims, n.components = 3)
 ```
 Plot 3D UMAP
 
 ```{r}
-my_object <- tech.integrated@reductions$umap@cell.embeddings
+tech.integrated.3d <- SetIdent(tech.integrated.3d, value = paste0("integrated_snn_res", integrated.res))
+my_object <- tech.integrated.3d@reductions$umap@cell.embeddings
+
 # color.palette @ res.0.5 has 15 levels. Change color.palette[11] to a different color so can add the biomark cells as large black dots afterwards
 color.palette[11] <- "mediumpurple1"
 par3d("windowRect" = c(122, 44, 950, 929))
 plot3d(x=my_object[,1], y=my_object[,2], z=my_object[,3], 
-			 col = color.palette[tech.integrated@active.ident], 
+			 col = color.palette[tech.integrated.3d@active.ident], 
 			 box=FALSE, axes=FALSE, xlab = "", ylab = "", zlab = "")
 rgl.lines(c(-10, 10), c(0, 0), c(0, 0), color = "black")
 rgl.lines(c(0, 0), c(-10, 10), c(0, 0), color = "red")
 rgl.lines(c(0, 0), c(0, 0), c(-10, 10), color = "green")
 
-# biomark.embeddings <- subset(tech.integrated, subset = orig.ident == "biomark")
-# biomark.embeddings <- biomark.embeddings@reductions$umap@cell.embeddings
-# plot3d(x = biomark.embeddings[,1], y = biomark.embeddings[,2], z = biomark.embeddings[,3],
-# 			 col = "black", size = 10,
-# 			 add = TRUE)
+biomark.embeddings <- subset(tech.integrated.3d, subset = orig.ident == "biomark")
+biomark.embeddings <- biomark.embeddings@reductions$umap@cell.embeddings
+plot3d(x = biomark.embeddings[,1], y = biomark.embeddings[,2], z = biomark.embeddings[,3],
+			 col = "black", size = 10,
+			 add = TRUE)
 rgl.viewpoint(zoom = .5)
-movie3d(spin3d(axis = c(1, 1, 1), rpm = 6), duration = 10, dir = getwd(), clean = TRUE, webshot = TRUE)
+movie3d(spin3d(axis = c(1, 1, 1), rpm = 6), duration = 10, dir = getwd(), clean = TRUE, webshot = TRUE, movie = "MergeBiomarkWith10X_CMP_pctVar95res.1.5")
 ```
+
+# Find Seurat v1 cells
+## Add cluster IDs from Seurat v1
+Exported cell IDs for clusters 3, 17, 10, 11 from Seurat v1. Will add these IDs as a metadata column.  
+Create column "clust.ID" and populate with 0's. Then import IDs for clusters
+```{r}
+clust3.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster3cellIDs.txt", col.names = "clust03")
+clust3.cells <- sapply(clust3.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+clust17.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster17cellIDs.txt", col.names = "clust17")
+clust17.cells <- sapply(clust17.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+clust10.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster10cellIDs.txt", col.names = "clust10")
+clust10.cells <- sapply(clust10.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+clust11.cells <- read.table(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/Seuratv1_clusterCellIDs/cluster11cellIDs.txt", col.names = "clust11")
+clust11.cells <- sapply(clust11.cells, function(x) paste0(gsub("CMP", "CMPm2", x), "-1"))
+```
+
+## map cluster ids from Seuratv1
+```{r}
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust3.cells] <- 3
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust17.cells] <- 17
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust10.cells] <- 10
+seurat.object@meta.data$clust.ID[rownames(seurat.object@meta.data) %in% clust11.cells] <- 11
+seurat.object@meta.data[is.na(seurat.object@meta.data)] <- 0
+seurat.object@meta.data$clust.ID <- as.factor(seurat.object@meta.data$clust.ID)
+```
+## plot something
+```{r}
+DimPlot(tech.integrated, group.by = "clust.ID", split.by = "integrated_snn_res.1.5", cols = c("black", "green", "blue", "red", "orange"), ncol = 4)
+```
+
+
+```{r}
+test.col.pattern <- "RNA_snn_res.1"
+target.col.pattern <- "integrated_snn_res"
+xlsx_filename <- paste0(projectName, "_pctVar", pct.var, "_mergedEnrichmentStats_Sv4B.xlsx")
+
+metadata_overlap_stats(seurat.object = seurat.object, 
+											 target.col.pattern = target.col.pattern, 
+											 test.col.pattern = test.col.pattern, 
+											 print_to_screen = TRUE,
+											 xlsx_filename = xlsx_filename)
+
+```
+
+## map cluster ids from Seuratv1
+```{r}
+tech.integrated@meta.data$clust.ID[rownames(tech.integrated@meta.data) %in% clust3.cells] <- 3
+tech.integrated@meta.data$clust.ID[rownames(tech.integrated@meta.data) %in% clust17.cells] <- 17
+tech.integrated@meta.data$clust.ID[rownames(tech.integrated@meta.data) %in% clust10.cells] <- 10
+tech.integrated@meta.data$clust.ID[rownames(tech.integrated@meta.data) %in% clust11.cells] <- 11
+tech.integrated@meta.data[is.na(tech.integrated@meta.data)] <- 0
+tech.integrated@meta.data$clust.ID <- as.factor(tech.integrated@meta.data$clust.ID)
+```
+## plot something
+```{r}
+DimPlot(tech.integrated, group.by = "clust.ID", split.by = "integrated_snn_res.1.5", cols = c("black", "green", "blue", "red", "orange"), ncol = 11)
+```
+
+```{r}
+DimPlot(seurat.object, group.by = "clust.ID", cols = c("black", "green", "blue", "red", "orange"))
+DimPlot(seurat.object, group.by = "clust.ID", split.by = "RNA_snn_res.1", cols = c("black", "green", "blue", "red", "orange"), ncol = 5)
+
+png(filename = paste0(projectName, "_pctVar", pct.var, "-Sv1ClustID_on_Sv4.png"), height = 800, width = 800)
+DimPlot(seurat.object, group.by = "clust.ID", cols = c("black", "green", "blue", "red", "orange"), pt.size = 1)
+dev.off()
+png(filename = paste0(projectName, "_pctVar", pct.var, "-Sv1ClustID_on_Sv4-facetSv4.png"), height = 800, width = 800)
+DimPlot(seurat.object, group.by = "clust.ID", split.by = "RNA_snn_res.1", cols = c("black", "green", "blue", "red", "orange"), ncol = 5) + NoAxes() + NoLegend()
+dev.off()
+```
+
+## generate emphasis colorpalette
+```{r}
+emphasis.palette <- rep("black", times = 25)
+```
+
+```{r}
+emphasis.palette.Sv4 <- emphasis.palette
+emphasis.palette.Sv4[c(4, 6, 7, 8)] <- c("green", "orange", "red", "blue")
+DimPlot(seurat.object, group.by = "RNA_snn_res.1", split.by = "integrated_snn_res.1.5", cols = emphasis.palette.Sv4, ncol = 5)
+
+png(filename = paste0(projectName, "_pctVar", pct.var, "-Sv4ClustID_on_Sv4B-facetSv4B.png"), height = 800, width = 800)
+DimPlot(seurat.object, group.by = "RNA_snn_res.1", split.by = "integrated_snn_res.1.5", cols = emphasis.palette.Sv4, ncol = 5) + NoAxes()
+dev.off()
+```
+
+
+
+
+
+
+
+
+
 
 
