@@ -130,6 +130,13 @@ pseudo.biomark.T[is.na(pseudo.biomark.T)] <- 0
 pseudo.biomark.T <- as.sparse(pseudo.biomark.T)
 biomark.object <- CreateSeuratObject(pseudo.biomark.T, project = "biomark", assay = "RNA", meta.data = biomark.meta)
 ```
+## Thought experiment
+```{r}
+dbiomark.T <- data.table::transpose(dbiomark.data)
+dbiomark.object <- CreateSeuratObject(dbiomark.T, project = "biomark", assay = "RNA", meta.data = biomark.meta)
+```
+
+
 
 ## Load SC data
 
@@ -257,7 +264,11 @@ tech.integrated <- IntegrateData(anchorset = tech.anchors, k.weight = 5)
 DefaultAssay(tech.integrated) <- "integrated"
 tech.integrated <- ScaleData(tech.integrated)
 tech.integrated <- RunPCA(tech.integrated, npcs = 30)
-DimPlot(tech.integrated, reduction = "pca", group.by = "orig.ident", pt.size = 2)
+DimPlot(tech.integrated, reduction = "pca", group.by = "orig.ident", pt.size = 2, cols = c("red", "black"))
+
+png(filename = paste0(projectName, "anchored_PCA.png"), height = 800, width = 800, bg = "transparent")
+DimPlot(tech.integrated, reduction = "pca", group.by = "orig.ident", pt.size = 2, cols = c("red", "black"), combine = FALSE)
+dev.off()
 ```
 
 so it looks like anchor-based integration is much nicer! goign to stick with this approach.
