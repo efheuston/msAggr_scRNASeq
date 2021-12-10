@@ -221,9 +221,11 @@ pre code {
 <h2>Define notebook variables</h2>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxud29ya2luZy5nZW5vbWUgPC0gXCJtbTEwXCJcbnVtaS5jdXRvZmYgPC0gMjAwXG5gYGAifQ== -->
+<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxud29ya2luZy5nZW5vbWUgPC0gXCJtbTEwXCJcbnVtaS5jdXRvZmYgPC0gMjAwXG5kYXRhLnBhdGggPC0gXCIvVXNlcnMvaGV1c3RvbmVmL0Rlc2t0b3AvMTBYR2Vub21pY3NEYXRhL21zQWdncl9zY1JOQVNlcS9JbmRpdmlkdWFsUG9wcy9cIlxuY2VsbC5wb3AgPC0gXCJDTVBcIlxuYGBgIn0= -->
 <pre class="r"><code>working.genome &lt;- &quot;mm10&quot;
-umi.cutoff &lt;- 200</code></pre>
+umi.cutoff &lt;- 200
+data.path &lt;- &quot;/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/IndividualPops/&quot;
+cell.pop &lt;- &quot;CMP&quot;</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
 <!-- rnb-text-begin -->
@@ -248,27 +250,15 @@ umi.cutoff &lt;- 200</code></pre>
 <h1>Load datasets</h1>
 <div id="provide-list-of-datasets" class="section level2">
 <h2>Provide list of datasets</h2>
+<p>After messing with this a bit, I’ve decided the easiest thing to do is integrate the data from the seurat object. This object already has the metadata and gene_short_names that I will need, and based on monocle3 documentation may be the easiest way to make sure everything gets where it needs to be.</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuZGF0YS5wYXRoIDwtIGMoXCIvVXNlcnMvaGV1c3RvbmVmL0Rlc2t0b3AvMTBYR2Vub21pY3NEYXRhL2NlbGxSYW5nZXIvQ01QbTJcIilcbmNkcyA8LSBuZXdfY2VsbF9kYXRhX3NldChmaWxlLnBhdGgoZGF0YS5wYXRoLCBcImZpbHRlcmVkX2ZlYXR1cmVfYmNfbWF0cml4XCIsIFwibWF0cml4Lm10eC5nelwiKSxcblx0XHRcdFx0XHRcdFx0XHRcdFx0Y2VsbF9tZXRhZGF0YSA9IGNlbGxfbWV0YWRhdGEsIFxuXHRcdFx0XHRcdFx0XHRcdFx0XHRnZW5lX21ldGFkYXRhID0gcmVhZC5kZWxpbShmaWxlLnBhdGgoZGF0YS5wYXRoLCBcImZpbHRlcmVkX2ZlYXR1cmVfYmNfbWF0cml4XCIpLCBoZWFkZXIgPSBGQUxTRSwgc2VwID0gXCJcXHRcIilbLCAxOjJdXG5cdFx0XHRcdFx0XHRcdFx0XHRcdClcbmBgYCJ9 -->
-<pre class="r"><code>data.path &lt;- c(&quot;/Users/heustonef/Desktop/10XGenomicsData/cellRanger/CMPm2&quot;)
-cds &lt;- new_cell_data_set(file.path(data.path, &quot;filtered_feature_bc_matrix&quot;, &quot;matrix.mtx.gz&quot;),
-                                        cell_metadata = cell_metadata, 
-                                        gene_metadata = read.delim(file.path(data.path, &quot;filtered_feature_bc_matrix&quot;), header = FALSE, sep = &quot;\t&quot;)[, 1:2]
-                                        )</code></pre>
-<!-- rnb-source-end -->
-<!-- rnb-output-begin eyJkYXRhIjoiRXJyb3I6IEFyZ3VtZW50IGV4cHJlc3Npb25fZGF0YSBtdXN0IGJlIGEgbWF0cml4IC0gZWl0aGVyIHNwYXJzZSBmcm9tIHRoZSBNYXRyaXggcGFja2FnZSBvciBkZW5zZVxuIn0= -->
-<pre><code>Error: Argument expression_data must be a matrix - either sparse from the Matrix package or dense</code></pre>
-<!-- rnb-output-end -->
-<!-- rnb-chunk-end -->
-<!-- rnb-text-begin -->
-<p>Extract metadata and gene_short_names from seurat.object</p>
-<!-- rnb-text-end -->
-<!-- rnb-chunk-begin -->
-<!-- rnb-source-begin eyJkYXRhIjpbIiMgRG9uJ3QgcnVuIiwibGlicmFyeShTZXVyYXQpIiwic2V1cmF0Lm9iamVjdCA8LSByZWFkUkRTKFwiLi4vbXNBZ2dyX3NldXJhdC9tc0FnZ3Jfc2V1cmF0X2RpbTI2LlJEU1wiKSIsImNlbGxfbWV0YWRhdGEgPC0gc2V1cmF0Lm9iamVjdEBtZXRhLmRhdGEiXX0= -->
+<!-- rnb-source-begin eyJkYXRhIjpbIiMgRG9uJ3QgcnVuIiwibGlicmFyeShTZXVyYXQpIiwiZGF0YS5wYXRoIDwtICIsInNldXJhdC5vYmplY3QgPC0gcmVhZFJEUyhcIi4uL21zQWdncl9zZXVyYXQvbXNBZ2dyX3NldXJhdF9kaW0yNi5SRFNcIikiLCIiLCJjZWxsX21ldGFkYXRhIDwtIHNldXJhdC5vYmplY3RAbWV0YS5kYXRhIl19 -->
 <pre class="r"><code># Don&#39;t run
 library(Seurat)
+data.path &lt;- 
 seurat.object &lt;- readRDS(&quot;../msAggr_seurat/msAggr_seurat_dim26.RDS&quot;)
+
 cell_metadata &lt;- seurat.object@meta.data</code></pre>
 <!-- rnb-source-end -->
 <!-- rnb-chunk-end -->
@@ -277,7 +267,7 @@ cell_metadata &lt;- seurat.object@meta.data</code></pre>
 </div>
 </div>
 
-<div id="rmd-source-code">LS0tCnRpdGxlOiAiQ01QX21vbm9jbGUiCm91dHB1dDogaHRtbF9ub3RlYm9vawotLS0KIyBTZXR1cAojIyBEZWZpbmUgbm90ZWJvb2sgdmFyaWFibGVzCmBgYHtyfQp3b3JraW5nLmdlbm9tZSA8LSAibW0xMCIKdW1pLmN1dG9mZiA8LSAyMDAKYGBgCgojIyBMb2FkIGxpYnJhcmllcwpgYGB7ciBzZXR1cCwgbWVzc2FnZT1GQUxTRSwgd2FybmluZz1GQUxTRSwgaW5jbHVkZT1GQUxTRX0Ka25pdHI6Om9wdHNfa25pdCRzZXQocm9vdC5kaXIgPSAifi9EZXNrdG9wLzEwWEdlbm9taWNzRGF0YS9tc0FnZ3Jfc2NSTkFTZXEvTW9ub2NsZS8iKQpsaWJyYXJ5KG1vbm9jbGUzKQpsaWJyYXJ5KGdncGxvdDIpCmxpYnJhcnkoZHBseXIpCmBgYAojIyBTb3VyY2UgZnVuY3Rpb25zCmBgYHtyfQpzb3VyY2UoIn4vRGVza3RvcC8xMFhHZW5vbWljc0RhdGEvbXNBZ2dyX3NjUk5BU2VxL1JGdW5jdGlvbnMvQ29sb3JQYWxldHRlLlIiKQpgYGAKIyBMb2FkIGRhdGFzZXRzCiMjIFByb3ZpZGUgbGlzdCBvZiBkYXRhc2V0cwpgYGB7cn0KZGF0YS5wYXRoIDwtIGMoIi9Vc2Vycy9oZXVzdG9uZWYvRGVza3RvcC8xMFhHZW5vbWljc0RhdGEvY2VsbFJhbmdlci9DTVBtMiIpCmNkcyA8LSBsb2FkX2NlbGxyYW5nZXJfZGF0YShkYXRhLnBhdGgpCiMgY2RzIDwtIG5ld19jZWxsX2RhdGFfc2V0KGZpbGUucGF0aChkYXRhLnBhdGgsICJmaWx0ZXJlZF9mZWF0dXJlX2JjX21hdHJpeCIsICJtYXRyaXgubXR4Lmd6IiksCiMgCQkJCQkJCQkJCWNlbGxfbWV0YWRhdGEgPSBjZWxsX21ldGFkYXRhLCAKIyAJCQkJCQkJCQkJZ2VuZV9tZXRhZGF0YSA9IHJlYWQuZGVsaW0oZmlsZS5wYXRoKGRhdGEucGF0aCwgImZpbHRlcmVkX2ZlYXR1cmVfYmNfbWF0cml4IiksIGhlYWRlciA9IEZBTFNFLCBzZXAgPSAiXHQiKVssIDE6Ml0KIyAJCQkJCQkJCQkJKQpgYGAKRXh0cmFjdCBtZXRhZGF0YSBhbmQgZ2VuZV9zaG9ydF9uYW1lcyBmcm9tIHNldXJhdC5vYmplY3QKYGBge3IsIGV2YWw9RkFMU0V9CiMgRG9uJ3QgcnVuCmxpYnJhcnkoU2V1cmF0KQpzZXVyYXQub2JqZWN0IDwtIHJlYWRSRFMoIi4uL21zQWdncl9zZXVyYXQvbXNBZ2dyX3NldXJhdF9kaW0yNi5SRFMiKQpjZWxsX21ldGFkYXRhIDwtIHNldXJhdC5vYmplY3RAbWV0YS5kYXRhCgpgYGAKCg==</div>
+<div id="rmd-source-code">LS0tCnRpdGxlOiAiQ01QX21vbm9jbGUiCm91dHB1dDogaHRtbF9ub3RlYm9vawotLS0KIyBTZXR1cAojIyBEZWZpbmUgbm90ZWJvb2sgdmFyaWFibGVzCmBgYHtyfQp3b3JraW5nLmdlbm9tZSA8LSAibW0xMCIKdW1pLmN1dG9mZiA8LSAyMDAKZGF0YS5wYXRoIDwtICIvVXNlcnMvaGV1c3RvbmVmL0Rlc2t0b3AvMTBYR2Vub21pY3NEYXRhL21zQWdncl9zY1JOQVNlcS9JbmRpdmlkdWFsUG9wcy8iCmNlbGwucG9wIDwtICJDTVAiCmBgYAoKIyMgTG9hZCBsaWJyYXJpZXMKYGBge3Igc2V0dXAsIG1lc3NhZ2U9RkFMU0UsIHdhcm5pbmc9RkFMU0UsIGluY2x1ZGU9RkFMU0V9CmtuaXRyOjpvcHRzX2tuaXQkc2V0KHJvb3QuZGlyID0gIn4vRGVza3RvcC8xMFhHZW5vbWljc0RhdGEvbXNBZ2dyX3NjUk5BU2VxL01vbm9jbGUvIikKbGlicmFyeShtb25vY2xlMykKbGlicmFyeShnZ3Bsb3QyKQpsaWJyYXJ5KGRwbHlyKQpgYGAKIyMgU291cmNlIGZ1bmN0aW9ucwpgYGB7cn0Kc291cmNlKCJ+L0Rlc2t0b3AvMTBYR2Vub21pY3NEYXRhL21zQWdncl9zY1JOQVNlcS9SRnVuY3Rpb25zL0NvbG9yUGFsZXR0ZS5SIikKYGBgCiMgTG9hZCBkYXRhc2V0cwojIyBQcm92aWRlIGxpc3Qgb2YgZGF0YXNldHMKQWZ0ZXIgbWVzc2luZyB3aXRoIHRoaXMgYSBiaXQsIEkndmUgZGVjaWRlZCB0aGUgZWFzaWVzdCB0aGluZyB0byBkbyBpcyBpbnRlZ3JhdGUgdGhlIGRhdGEgZnJvbSB0aGUgc2V1cmF0IG9iamVjdC4gVGhpcyBvYmplY3QgYWxyZWFkeSBoYXMgdGhlIG1ldGFkYXRhIGFuZCBnZW5lX3Nob3J0X25hbWVzIHRoYXQgSSB3aWxsIG5lZWQsIGFuZCBiYXNlZCBvbiBtb25vY2xlMyBkb2N1bWVudGF0aW9uIG1heSBiZSB0aGUgZWFzaWVzdCB3YXkgdG8gbWFrZSBzdXJlIGV2ZXJ5dGhpbmcgZ2V0cyB3aGVyZSBpdCBuZWVkcyB0byBiZS4KYGBge3IsIGV2YWw9RkFMU0V9CiMgRG9uJ3QgcnVuCmxpYnJhcnkoU2V1cmF0KQpkYXRhLnBhdGggPC0gCnNldXJhdC5vYmplY3QgPC0gcmVhZFJEUygiLi4vbXNBZ2dyX3NldXJhdC9tc0FnZ3Jfc2V1cmF0X2RpbTI2LlJEUyIpCgpjZWxsX21ldGFkYXRhIDwtIHNldXJhdC5vYmplY3RAbWV0YS5kYXRhCgpgYGAKCg==</div>
 
 
 
