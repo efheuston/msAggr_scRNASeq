@@ -1,0 +1,26 @@
+---
+title: "msAggr_monocle"
+output: html_document
+---
+
+# Setup
+## Load libraries
+```{r setup, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/Monocle/")
+library(monocle3)
+library(ggplot2)
+library(dplyr)
+```
+## Source functions
+```{r}
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
+```
+# Load datasets
+Provide list of datasets
+```{r}
+data.list <- c("/Users/heustonef/Desktop/10XGenomicsData/cellRanger/LSKm2",
+							"/Users/heustonef/Desktop/10XGenomicsData/cellRanger/CMPm2", 
+							"/Users/heustonef/Desktop/10XGenomicsData/cellRanger/MEPm", 
+							"/Users/heustonef/Desktop/10XGenomicsData/cellRanger/GMPm")
+```
+
