@@ -1,0 +1,41 @@
+---
+title: "CMP_monocle"
+output: html_notebook
+---
+# Setup
+## Define notebook variables
+```{r}
+working.genome <- "mm10"
+umi.cutoff <- 200
+```
+
+## Load libraries
+```{r setup, message=FALSE, warning=FALSE, include=FALSE}
+knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/Monocle/")
+library(monocle3)
+library(ggplot2)
+library(dplyr)
+```
+## Source functions
+```{r}
+source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
+```
+# Load datasets
+## Provide list of datasets
+```{r}
+data.path <- c("/Users/heustonef/Desktop/10XGenomicsData/cellRanger/CMPm2")
+cds <- load_cellranger_data(data.path)
+# cds <- new_cell_data_set(file.path(data.path, "filtered_feature_bc_matrix", "matrix.mtx.gz"),
+# 										cell_metadata = cell_metadata, 
+# 										gene_metadata = read.delim(file.path(data.path, "filtered_feature_bc_matrix"), header = FALSE, sep = "\t")[, 1:2]
+# 										)
+```
+Extract metadata and gene_short_names from seurat.object
+```{r, eval=FALSE}
+# Don't run
+library(Seurat)
+seurat.object <- readRDS("../msAggr_seurat/msAggr_seurat_dim26.RDS")
+cell_metadata <- seurat.object@meta.data
+
+```
+
