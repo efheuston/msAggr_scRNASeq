@@ -288,3 +288,18 @@ dev.off()
 
 
 Will need to complete msAggr to order cells. For example, will pick those CMP cells that cluster with LSK and "earliest" CMPs.
+
+## Plot by gene expression
+```{r}
+my_plot <- plot_cells(cds, reduction_method = "UMAP", 
+            genes = c("Elane", "Fli1", "Gata1", "Gata2", "Klf1", "Meis1", "Zfpm1", "Dntt", "Cd150"), trajectory_graph_color = "red",
+            label_groups_by_cluster = FALSE, label_leaves = FALSE, label_branch_points = TRUE,  
+            cell_size = 1, group_label_size = 8, graph_label_size = 5, trajectory_graph_segment_size = 1)
+plot(my_plot)
+
+png(filename = paste0(projectName, "-umap_YFG_psdtime.png"), height = 1600, width = 2000, bg = "transparent")
+plot(my_plot)
+dev.off()
+```
+
+
