@@ -4,6 +4,25 @@ output: html_document
 ---
 
 # Setup
+## Define notebook variables
+```{r}
+working.genome <- "mm10"
+umi.cutoff <- 200
+data.path <- "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/msAggr_seurat/"
+cell.pop <- "msAggr"
+seurat.var.pct <- 90
+n.neighbors <- 20
+
+# Setting a seed to ensure reproducible data
+seed.value <- 10
+```
+## Notebook variable definitions
+```{r}
+seurat.rds <- "msAggr_seurat_dim26.RDS"
+projectName <- paste0(cell.pop, "_monocle" )
+set.seed(seed.value)
+```
+
 ## Load libraries
 ```{r setup, message=FALSE, warning=FALSE, include=FALSE}
 knitr::opts_knit$set(root.dir = "~/Desktop/10XGenomicsData/msAggr_scRNASeq/Monocle/")
@@ -14,13 +33,332 @@ library(dplyr)
 ## Source functions
 ```{r}
 source("~/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/ColorPalette.R")
+## Have to get rid of the earliest "black" as a color because am plotting trajectories in black
+color.palette <- gsub("black", "plum", color.palette)
 ```
-# Load datasets
-Provide list of datasets
+## Store session info
 ```{r}
-data.list <- c("/Users/heustonef/Desktop/10XGenomicsData/cellRanger/LSKm2",
-							"/Users/heustonef/Desktop/10XGenomicsData/cellRanger/CMPm2", 
-							"/Users/heustonef/Desktop/10XGenomicsData/cellRanger/MEPm", 
-							"/Users/heustonef/Desktop/10XGenomicsData/cellRanger/GMPm")
+sessionInfo.filename <- paste0(projectName, "_sessionInfo.txt")
+sink(sessionInfo.filename)
+sessionInfo()
+sink()
 ```
+
+# Load datasets
+## Provide list of datasets
+After messing with this a bit, I've decided the easiest thing to do is integrate the data from the seurat object. This object already has the metadata and gene_short_names that I will need, and based on monocle3 documentation may be the easiest way to make sure everything gets where it needs to be.
+```{r}
+library(Seurat)
+seurat.object <- readRDS(file.path(data.path, seurat.rds))
+seurat.xprsn <- GetAssayData(seurat.object, slot = "counts", assay = "RNA")
+cell_metadata <- seurat.object@meta.data[colnames(seurat.xprsn),]
+gene_metadata <- data.frame(gene_short_name = rownames(seurat.xprsn))
+rownames(gene_metadata) <- rownames(seurat.xprsn)
+cds <- new_cell_data_set(expression_data = seurat.xprsn, 
+												 cell_metadata = cell_metadata[colnames(seurat.xprsn), ], 
+												 gene_metadata = gene_metadata)
+rm(seurat.object, seurat.xprsn, cell_metadata, gene_metadata)
+```
+Look at object
+```{r}
+cds
+```
+## Save CDS object
+```{r}
+saveRDS(cds, file = paste0(projectName, ".RDS"))
+```
+# Data analysis
+## Load saved object
+```{r}
+cds <- readRDS(paste0(projectName, ".RDS"))
+```
+
+## Preprocessing
+```{r}
+cds <- preprocess_cds(cds = cds, metcdshod = "PCA", num_dim = 50, verbose = TRUE)
+```
+```{r}
+plot_pc_variance_explained(cds) + ggtitle("Proportion of variance explained (note not stdev)")
+```
+## calculate proportion of variance explained
+```{r}
+pct.list <- c(80, 85, 90, 95)
+for (pct in pct.list){
+	print(paste("Num pcs for", pct, "variance:", length(which(cumsum(cds@preprocess_aux$prop_var_expl*100) <= pct))))
+}
+```
+
+
+## Clustering analysis
+### Cluster with UMAP.
+UMAP is based on uwot's `umap` function
+```{r}
+cds <- reduce_dimension(cds = cds, max_components = 2, reduction_method = "UMAP", preprocess_method = "PCA", umap.n_neighbors = n.neighbors)
+```
+plot umap. Can color cells based on any `colData(cds)` column (essentially metadata columns)
+```{r}
+plot_cells(cds = cds, reduction_method = "UMAP", color_cells_by = "RNA_snn_res.1", show_trajectory_graph = FALSE, cell_size = .7, group_label_size = 5) + scale_color_manual(values = color.palette)
+```
+### Cluster wiht tSNE
+Note that this is stored in a different slot than UMAP and will not overwrite those data
+```{r}
+cds <- reduce_dimension(cds = cds, max_components = 2, reduction_method = "tSNE", preprocess_method = "PCA")
+```
+Plot tSNE. Must specifiy slot to plot
+```{r}
+plot_cells(cds = cds, reduction_method = "tSNE", color_cells_by = "RNA_snn_res.1", show_trajectory_graph = FALSE, cell_size = .7, group_label_size = 5) + scale_color_manual(values = color.palette)
+```
+## Save CDS object
+```{r}
+saveRDS(cds, file = paste0(projectName, ".RDS"))
+```
+### Check for batch effects
+Function `align_cds` tries to remove batch effects using mutual nearest neighbor alignment (package `batchelor`, Aaron Lun). Will test this on a different object.  
+Can specify alignment variable using parameter `alignment_group`. Note that only 1 variable can be specified
+```{r}
+# cds.aligned <- align_cds(cds = cds, preprocess_method = "PCA", alignment_group = "nCount_RNA")
+```
+*Failboat. Requires too much memory on laptop.*
+### Perform clustering analysis
+Monocle uses "community detection" (Leiden method and Louvain method).  
+Note that setting `resolution = NULL` and `cluster_method = "leiden"`, then resoltuion is determined automatically (actually I think it's just set to 0.0001, based on code)...
+```{r}
+# read RDS
+cds <- readRDS(file = paset0(projectName, ".RDS"))
+```
+
+
+```{r}
+res.list <- c(1e-4, 5e-4, 1e-3, 2e-3)
+# reduction.method <- "UMAP"
+# cluster.method <- "leiden"
+
+for(res in res.list){
+	# Cluster cells at given resolution
+	cds <- cluster_cells(cds = cds, 
+											 reduction_method = "UMAP", 
+											 k = n.neighbors, 
+											 cluster_method = "leiden", 
+											 resolution = res, 
+											 num_iter = 10, 
+											 random_seed = seed.value,
+											 verbose = TRUE)
+	# Copy cluster information to metadata in colData
+	coldata.res <- paste0("umap_res_", res)
+	colData(cds)[coldata.res] <- clusters(cds)
+}
+for(colID in colnames(colData(cds))){
+	if(grepl("umap_res", colID)){
+		cat("cluster count for", colID, ":", length(levels(colData(cds)[,colID])), "\n")
+	}
+}
+
+```
+## save umap object
+```{r}
+saveRDS(cds, file = paste0(projectName, "-UMAP.RDS"))
+```
+## read object
+```{r}
+cds <- readRDS(paste0(projectName, "-UMAP.RDS"))
+```
+
+```{r}
+plotting_cols <- c("umap_res", "orig.ident", "RNA_snn" )
+for(colID in colnames(colData(cds))){
+	if(grepl(paste(plotting_cols, collapse = "|"), colID)){
+		if(length(levels(colData(cds)[,colID])) <= length(color.palette)){
+			cluster_plot <- plot_cells(cds = cds, reduction_method = "UMAP", 
+																 color_cells_by = colID, show_trajectory_graph = FALSE, 
+																 cell_size = 1, group_label_size = 5, label_groups_by_cluster = FALSE) + 
+				scale_color_manual(values = color.palette) +
+				ggtitle(paste0(projectName, "-", colID))
+			plot(cluster_plot)
+		} else {
+			cluster_plot <- plot_cells(cds = cds, reduction_method = "UMAP", 
+																 color_cells_by = colID,  show_trajectory_graph = FALSE, 
+																 cell_size = 1, group_label_size = 5, label_groups_by_cluster = FALSE) + 
+				ggtitle(paste0(projectName,  "-", colID))
+			plot(cluster_plot)
+			
+		}
+		# save plot
+		png(filename = paste0(projectName,  "-", colID, ".png"), height= 1600, width = 1600)
+		plot(cluster_plot)
+		dev.off()
+	}
+}
+```
+
+
+### Explore resolution
+```{r eval = FALSE}
+# library(igraph)
+# library(schex)
+# library(scater)
+# library(scran)
+# library(ggrepel)
+# # plot_hexbin_meta_shiny(cds, col = "RNA_snn_res.1", action = "majority", min_nbins = 20, max_nbins = 50, dimension_reduction = "UMAP", na.rm = TRUE) 
+```
+For CMP, let's start exploring with res = 0.001
+# Find Marker Genes
+randomly guessing to set reference_cells value at 1000 (could also provide a list of cells if, e.g., wanted to specifiy an originating population)
+```{r}
+marker_test_res <- top_markers(cds, group_cells_by = "umap_res_5e-04", reference_cells = 1000, cores = 7)
+```
+```{r}
+marker_test_res
+```
+KEY:
+a data.frame where the rows are genes and the columns are  
+* gene_id vector of gene names
+* gene_short_name vector of gene short names
+* cell_group character vector of the cell group to which the cell belongs
+* marker_score numeric vector of marker scores as the fraction expressing scaled by the specificity. The value ranges from 0 to 1.
+* mean_expression numeric vector of mean normalized expression of the gene in the cell group
+* fraction_expressing numeric vector of fraction of cells expressing the gene within the cell group
+* specificity numeric vector of a measure of how specific the gene's expression is to the cell group based on the Jensen-Shannon divergence. The value ranges from 0 to 1.
+* pseudo_R2 numeric vector of pseudo R-squared values, a measure of how well the gene expression model fits the categorical data relative to the null model. The value ranges from 0 to 1.
+* marker_test_p_value numeric vector of likelihood ratio p-values
+* marker_test_q_value numeric vector of likelihood ratio q-values  
+```{r}
+top_pseudoR2_markers <- marker_test_res %>%
+	filter(fraction_expressing >= 0.10) %>%
+	group_by(cell_group) %>%
+	top_n(3, pseudo_R2)
+top_pseudoR2_markers <- unique(top_pseudoR2_markers %>% pull(gene_id))
+my_plot <- plot_genes_by_group(cds, top_pseudoR2_markers, group_cells_by = "umap_res_0.001", ordering_type = "maximal_on_diag", max.size = 10)
+plot(my_plot)
+png(filename = paste0(projectName, "-map_res_0.001", "-pseudoR2markers.png"), height = 1200, width = 800)
+plot(my_plot)
+dev.off()
+```
+
+
+# Auto Annotate with Garnett
+## Start with marker_test_res
+```{r}
+# Require that markers have at least JS specificty score > 0.5 and
+# be significant in the logistic test for identifying their cell type:
+garnett_markers <- marker_test_res %>%
+                        filter(marker_test_q_value < 0.01 & specificity >= 0.5) %>%
+                        group_by(cell_group) %>%
+                        top_n(5, marker_score)
+# Exclude genes that are good markers for more than one cell type:
+garnett_markers <- garnett_markers %>% 
+                        group_by(gene_short_name) %>%
+                        filter(n() == 1)
+# Generate garnett marker file
+generate_garnett_marker_file(garnett_markers, file = paste0(projectName, "-garnettMarkers.txt"))
+```
+
+__Note that this file can be manually modified to add/remove classifier markers
+__Abandoning this!__ 1) I'm getting distracted and 2) Will have to play with resolution to get marker genes for more than 3 clusters
+
+# Trajectory Inference
+First make sure correct resolution is represented in cluster slot
+```{r}
+cds <- cluster_cells(cds = cds, 
+										 reduction_method = "UMAP", 
+										 k = n.neighbors, 
+										 cluster_method = "leiden", 
+										 resolution = 5e-4, 
+										 num_iter = 10, 
+										 random_seed = seed.value,
+										 verbose = TRUE)
+```
+Fit principal graph. Set `use_partition = TRUE` to not require all cells be connected on a single graph
+```{r}
+cds <- learn_graph(cds, use_partition = TRUE, verbose = TRUE)
+```
+## save result
+```{r}
+saveRDS(cds, file = paste0(projectName, "-umap_res5e-4_psdtime.RDS"))
+```
+
+```{r}
+my_plot <- plot_cells(cds, reduction_method = "UMAP", 
+											color_cells_by = "cluster", 
+											label_groups_by_cluster = FALSE, label_leaves = FALSE, label_branch_points = TRUE,  
+											cell_size = 1, group_label_size = 8, graph_label_size = 5) + 
+					scale_color_manual(values = color.palette) +
+					ggtitle(paste0(projectName, "-umap_res5e-4_psdtime"))
+plot(my_plot)
+
+png(filename = paste0(projectName, "-umap_res5e-4_psdtime.png"), height = 1600, width = 1600, bg = "transparent")
+plot(my_plot)
+dev.off()
+```
+
+```{r}
+my_plot <- plot_cells(cds, reduction_method = "UMAP", 
+											color_cells_by = "cluster", 
+											label_groups_by_cluster = FALSE, label_leaves = FALSE, label_branch_points = FALSE, 
+											cell_size = 1, group_label_size = 8, graph_label_size = 5) + 
+					scale_color_manual(values = color.palette) +
+					ggtitle(paste0(projectName, "-umap_res5e-4_psdtime"))
+plot(my_plot)
+
+png(filename = paste0(projectName, "-umap_res5e-4_psdtimeNoBranchPts.png"), height = 1600, width = 1600, bg = "transparent")
+plot(my_plot)
+dev.off()
+```
+```{r}
+my_plot <- plot_cells(cds, reduction_method = "UMAP", 
+											color_cells_by = "orig.ident", 
+											label_groups_by_cluster = FALSE, label_leaves = FALSE, label_branch_points = TRUE,  label_cell_groups = FALSE,
+											cell_size = 1, group_label_size = 8, graph_label_size = 5, trajectory_graph_color = "black", trajectory_graph_segment_size = 1.5) + 
+					scale_color_manual(values = c("red", "cadetblue", "orange", "green")) +
+					ggtitle(paste0(projectName, "-umap_res5e-4_orig.ident-psdtime"))
+plot(my_plot)
+
+png(filename = paste0(projectName, "-umap_res5e-4_orig.ident-psdtime.png"), height = 1600, width = 1600, bg = "transparent")
+plot(my_plot)
+dev.off()
+
+```
+```{r}
+my_plot <- plot_cells(cds, reduction_method = "UMAP", 
+											color_cells_by = "partition", label_cell_groups = FALSE,
+											label_groups_by_cluster = FALSE, label_leaves = FALSE, label_branch_points = TRUE,  
+											cell_size = 1, group_label_size = 8, graph_label_size = 5) + 
+					scale_color_manual(values = color.palette) +
+					ggtitle(paste0(projectName, "-umap_res5e-4_psdtime_partition"))
+plot(my_plot)
+
+png(filename = paste0(projectName, "-umap_res5e-4_psdtime-partition.png"), height = 1600, width = 1600, bg = "transparent")
+plot(my_plot)
+dev.off()
+```
+
+
+Will need to complete msAggr to order cells. For example, will pick those CMP cells that cluster with LSK and "earliest" CMPs.
+
+## Plot by gene expression
+```{r}
+my_plot <- plot_cells(cds, reduction_method = "UMAP", 
+											genes = c("Elane", "Fli1", "Gata1", "Gata2", "Klf1", "Meis1", "Zfpm1", "Dntt", "Cd150", "Flk2", "Cd48", "Kit", "Ly6a", "Ly6e"), trajectory_graph_color = "red",
+											label_groups_by_cluster = FALSE, label_leaves = FALSE, label_branch_points = TRUE,  
+											cell_size = 1, group_label_size = 8, graph_label_size = 5, trajectory_graph_segment_size = 1)
+plot(my_plot)
+
+png(filename = paste0(projectName, "-umap_YFG_psdtime.png"), height = 3200, width = 4000, bg = "transparent")
+plot(my_plot)
+dev.off()
+```
+## Order cells
+Liking roots 11, 3, and 1, at the intersection of clusters 16/19/11. I like this because it's far away from the CMP and other branch points.
+```{r}
+cds <- order_cells(cds, verbose = TRUE)
+```
+```{r}
+plot_cells(cds,
+           color_cells_by = "pseudotime",
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=1.5)
+```
+
+
 
