@@ -360,5 +360,6 @@ plot_cells(cds,
            graph_label_size=1.5)
 ```
 
+# extracting clusters and cell IDs along trajectory
 
 

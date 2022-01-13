@@ -58,6 +58,7 @@ SET SEED?????!!!!!
 ```{r}
 projectName <- "msAggr_seurat"
 jackstraw.dim <- 40
+
 ```
 
 ## Store session info
@@ -680,7 +681,7 @@ ndims <- as.numeric(gsub("[^0-9]", "", stringr::str_split(rds.file, "_")[[1]][3]
 
 ## Set favourite resolution
 ```{r}
-object.res <- ".0.5"
+object.res <- ".1"
 Idents(seurat.object) <- paste0("RNA_snn_res", object.res)
 length(levels(seurat.object@active.ident))
 ```
@@ -708,27 +709,37 @@ VlnPlot(subset(seurat.object, subset = orig.ident == "MEPm"),
 ```
 
 
-## DGE w/ resolution = 0.5
+## DGE 
 Strt with comparing all clusters against all other clusters and write out cluster info
 calculate `FindAllMarkers()` for different idents and save to new file
 ```{r}
 # ident.list <- colnames(seurat.object@meta.data)[grepl("^RNA_snn", colnames(seurat.object@meta.data))]
-# ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
-# ident.list <- c("RNA_snn_res.1")
-ident.list <- c("RNA_snn_res.0.5")
+ident.list <- c("RNA_snn_res.1")
+# ident.list <- c("RNA_snn_res.0.5")
 cut_off <- 1.2
+# ident.list <- c("RNA_snn_res.0.5", "RNA_snn_res.1")
+
 load(file = "/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/mouseIDTable.rda")
 
-for(tested.ident in ident.list){
-	ident.res <- gsub("RNA_snn_res", "", tested.ident)
-	seurat.object <- SetIdent(seurat.object, value = tested.ident)
-	all.markers <- FindAllMarkers(seurat.object)
-	# xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")], 
-	# 								 file = paste0(projectName, "_FindALLMarkers_dim",ndims, ".xlsx"), 
-	# 								 sheetName = paste0("res", ident.res), 
-	# 								 col.names = TRUE, 
-	# 								 row.names = FALSE, 
-	# 								 append = TRUE)
+# for(tested.ident in ident.list){
+# 	ident.res <- gsub("RNA_snn_res", "", tested.ident)
+# 	seurat.object <- SetIdent(seurat.object, value = tested.ident)
+# 	all.markers <- FindAllMarkers(seurat.object)
+all.markers <- data.frame(all.markers %>% group_by(cluster))
+top100 <- data.frame(all.markers %>% group_by(cluster) %>% top_n(n = 100, wt = absValue))
+	xlsx::write.xlsx(x = all.markers[,c("avg_log2FC", "p_val_adj", "cluster", "gene")],
+									 file = paste0(projectName, "_FindALLMarkers_dim",ndims, ".xlsx"),
+									 sheetName = paste0("res", ident.res),
+									 col.names = TRUE,
+									 row.names = FALSE,
+									 append = TRUE)
+		xlsx::write.xlsx(x = data.frame(top100[,c("avg_log2FC", "p_val_adj", "cluster", "gene")]),
+									 file = paste0(projectName, "_FindALLMarkers_dim",ndims, "-top100.xlsx"),
+									 sheetName = 'top100',
+									 col.names = TRUE,
+									 row.names = FALSE,
+									 append = FALSE)
+
 	
 	## Map HGNC symbols
 
@@ -745,19 +756,41 @@ for(tested.ident in ident.list){
 		new.table <- new.table[order(-new.table$avg_log2FC), ]
 		try(dir.create(paste0("RankList_res", ident.res, "_findAll_hgnc/"), showWarnings = FALSE))
 		write.table(new.table, file = paste0("RankList_res", ident.res, "_findAll_hgnc/res", ident.res, "_cluster", cluster, ".rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
-		write.table(new.table[new.table$avg_log2FC >= cut_off,], file = paste0("RankList_res", ident.res, "_findAll_hgnc/res", ident.res, "_cluster", cluster, "-co", cut_off, "up.rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
-		write.table(new.table[new.table$avg_log2FC >= (cut_off)*-1,], file = paste0("RankList_res", ident.res, "_findAll_hgnc/res", ident.res, "_cluster", cluster, "-co", cut_off, "dn.rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
-	}
+		# write.table(new.table[new.table$avg_log2FC >= cut_off,], file = paste0("RankList_res", ident.res, "_findAll_hgnc/res", ident.res, "_cluster", cluster, "-co", cut_off, "up.rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
+		# write.table(new.table[new.table$avg_log2FC >= (cut_off)*-1,], file = paste0("RankList_res", ident.res, "_findAll_hgnc/res", ident.res, "_cluster", cluster, "-co", cut_off, "dn.rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
+		}
+
+		#top 100		
+	HGNC <- with(mouseIDTable, mouseIDTable$HGNC[match(top100$gene, mouseIDTable$MGI)])
+	top100$HGNC <- HGNC
+	sig.res <- top100[top100$p_val_adj <= 0.05, ]
+	sig.res <- sig.res[c("avg_log2FC", "HGNC", "cluster")]
+	sig.res <- sig.res[!(sig.res$HGNC == "" | is.na(sig.res$HGNC)),] # GSEA will fail if there are any blanks or NAs in the table
+	sig.res <- sig.res[]
+	
+	for(cluster in unique(sig.res$cluster)){
+		print(paste("writing cluster", cluster))
+		new.table <- sig.res[sig.res$cluster == cluster, c("HGNC", "avg_log2FC")]
+		new.table <- new.table[order(-new.table$avg_log2FC), ]
+		try(dir.create(paste0("RankList_res", ident.res, "_findAll_hgnc_top100/"), showWarnings = FALSE))
+		write.table(new.table, file = paste0("RankList_res", ident.res, "_findAll_hgnc_top100/res", ident.res, "_cluster", cluster, "-top100.rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
+		# write.table(new.table[new.table$avg_log2FC >= cut_off,], file = paste0("RankList_res", ident.res, "_findAll_hgnc_top100/res", ident.res, "_cluster", cluster, "-co", cut_off, "top100up.rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
+		# write.table(new.table[new.table$avg_log2FC >= (cut_off)*-1,], file = paste0("RankList_res", ident.res, "_findAll_hgnc_top100/res", ident.res, "_cluster", cluster, "-co", cut_off, "top100dn.rnk"), quote = FALSE, row.names = FALSE, col.names = TRUE, sep = "\t", )
 }
 ```
 
 ## topGO with FindAllMarkers
 ```{r}
 source("/Users/heustonef/Desktop/10XGenomicsData/msAggr_scRNASeq/RFunctions/GoEnrichmentAnalysis.R")
-GO_enrichment_function(my_folder = "RankList_res.0.5_findAll_hgnc/", file.pattern = ".rnk", id.type = "symbol")
-# GO_enrichment_function(my_folder = "RankList_res.1_findAll_hgnc/", file.pattern = ".rnk", id.type = "symbol")
+# GO_enrichment_function(my_folder = "RankList_res.0.5_findAll_hgnc/", file.pattern = ".rnk", id.type = "symbol")
+GO_enrichment_function(my_folder = "RankList_res.1_findAll_hgnc/", file.pattern = ".rnk", id.type = "symbol")
+GO_enrichment_function(my_folder = "backups/RankList_res.1_findAll_hgnc/", file.pattern = "up.rnk", id.type = "symbol")
 ```
 
+write table of cluster IDs
+```{r}
+write.table(seurat.object@meta.data, file = "msAggr_SeuratMetaData.txt", row.names = row.names(seurat.object@meta.data), sep = "\t", col.names = TRUE, quote = FALSE)
+```
 
 
 

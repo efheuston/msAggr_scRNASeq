@@ -703,16 +703,33 @@ tech.integrated <- AddMetaData(tech.integrated, metadata = mfi.norm)
 ```
 now plot some stuff
 ```{r}
-biomark.integrated <- subset(tech.integrated, subset = orig.ident == "biomark")
+biomark.integrated <- subset(tech.integrated, subset = orig.ident == "CMP")
 ```
 ```{r fig.height=12, fig.width=5}
 RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
 ```
+```{r fig.height=12, fig.width=5}
+RidgePlot(biomark.integrated, features = c("Cd34pos", "Cd41pos", "Cd9pos", "Cd48pos"), cols = color.palette, ncol = 1, same.y.lims = TRUE)
+```
 ```{r}
 png(filename = paste0(projectName, "_pctVar", integrated.var, "res", integrated.res, "-fluor.png"), height = 2400, width = 800)
-RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1)
+RidgePlot(biomark.integrated, features = fluor.cols, cols = color.palette, ncol = 1, same.y.lims = TRUE)
 dev.off()
 ```
+plot ridgeplot subsets
+```{r}
+featurelist = c("Cd34pos", "Cd41pos", "Cd9pos", "Cd48pos")
+for(fluor in featurelist){
+	print(fluor)
+	myplot = RidgePlot(biomark.integrated, features = fluor, cols = color.palette, idents = c(4, 5, 7,13), same.y.lims = TRUE, log = TRUE) + xlim(c(-3.5,6))
+	png(filename = paste0(projectName, "_pctVar", integrated.var, "res", integrated.res, "_", fluor, "-idents4.5.7.13.png"))
+	plot(myplot)
+	dev.off()
+}
+```
+
+
+
 plot umaps
 ```{r}
 for(integrated.col in integrated.ident.list){
@@ -950,13 +967,96 @@ dev.off()
 ```
 
 ```{r}
+tech.object <- tech.integrated 
+```
+```{r}
+tech.object@meta.data["collapsed"] <- tech.object@meta.data$integrated_snn_res.1
+tech.object@meta.data$collapsed[tech.object@meta.data$collapsed == c(12)] <- 11
+tech.object@meta.data$collapsed[tech.object@meta.data$collapsed == c(13)] <- 11
+tech.object@meta.data$collapsed[tech.object@meta.data$collapsed == c(14)] <- 11
+tech.object@meta.data$collapsed[tech.object@meta.data$collapsed == c(15)] <- 11
+tech.object@meta.data$collapsed[tech.object@meta.data$collapsed == c(16)] <- 11
+tech.object@meta.data$collapsed[tech.object@meta.data$collapsed == c(17)] <- 11
+tech.object@meta.data$collapsed[tech.object@meta.data$collapsed == c(18)] <- 11
+tech.object@meta.data$collapsed <- factor(tech.object@meta.data$collapsed)
+```
+```{r}
+features <- c(
+	# "Kit", 
+	# "Cd34", 
+	"Cd48", 
+	"Dntt", 
+	"Irf8",
+	"Lgals3",
+	"Ly86",
+	# "Mpl",
+	"Mpo",
+	"Mecom",
+	"Pf4",
+	# "Itga2b",
+	# "Itgb3",
+	"Gp1bb", 
+	"Vwf",
+	"Cd9", 
+	"Gata2", 
+	"Gata1", 
+	"Klf1",
+	# "Mt2",
+	"Birc5", 
+	"Ube2c"
+	)
+```
+```{r}
+DoHeatmap(subset(tech.object, downsample = 100), features = features, group.by = "collapsed", group.colors = color.palette)
+```
 
+```{r}
+colnames(tech.integrated@meta.data)
+```
+
+
+```{r}
+seurat.object<- readRDS("../IndividualPops/CMPSubpop_pctVar90.RDS")
+seurat.object$collapsed <- tech.object$collapsed
+```
+```{r}
+DimPlot(seurat.object, group.by = "RNA_snn_res.0.5", cols = color.palette)
+```
+```{r}
+# msaggr <- readRDS("../msAggr_seurat/msAggr_seurat_dim26.RDS")
+# mscmp <- subset(msaggr, orig.ident == "CMPm2")
+# mscmp$collapsed <- tech.integrated$integrated_snn_res.0.5
+test.col.pattern <- "collapsed"
+target.col.pattern <- "RNA_snn_res."
+xlsx_filename <- paste0("msAggr",projectName, "_mergedEnrichmentStats.xlsx")
+
+metadata_overlap_stats(seurat.object = mscmp, 
+											 target.col.pattern = target.col.pattern, 
+											 test.col.pattern = test.col.pattern, 
+											 print_to_screen = TRUE,
+											 xlsx_filename = xlsx_filename)
 ```
 
 
 
 
+```{r}
+msaggr <- readRDS("../msAggr_seurat/msAggr_seurat_dim26.RDS")
+```
+```{r}
+source("ScanpyPalette.R")
+```
 
-
+```{r}
+msaggr$collapsed <- tech.integrated$integrated_snn_res.0.5
+emphasis.palette <- rep("#7F7E7F", 16)
+emphasis.palette[5] <- "red"
+emphasis.palette[6] <- "blue"
+emphasis.palette[8] <- "orange"
+emphasis.palette[14] <- "green"
+png(filename = "Integrated_clusters.png", height = 800, width = 800)
+plot(DimPlot(msaggr, group.by = "collapsed", cols = emphasis.palette, na.value = "#7F7E7F", pt.size = 1))
+dev.off()
+```
 
 
