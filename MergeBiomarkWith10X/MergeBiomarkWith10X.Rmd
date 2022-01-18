@@ -130,6 +130,7 @@ pseudo.biomark.T[is.na(pseudo.biomark.T)] <- 0
 pseudo.biomark.T <- as.sparse(pseudo.biomark.T)
 biomark.object <- CreateSeuratObject(pseudo.biomark.T, project = "biomark", assay = "RNA", meta.data = biomark.meta)
 ```
+
 ## Thought experiment
 ```{r}
 dbiomark.T <- data.table::transpose(dbiomark.data)
